@@ -1,0 +1,1978 @@
+[
+  {
+    "field": "ACChargingEnergyIn",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "",
+    "desc": "The amount of energy in kWh added during an AC charging session. This is measured from the charger. This field should be ignored during DC charging.",
+    "enum": ""
+  },
+  {
+    "field": "ACChargingPower",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "charge_state.charger_power",
+    "desc": "Total AC charger input power.",
+    "enum": ""
+  },
+  {
+    "field": "AutoSeatClimateLeft",
+    "category": "Climate",
+    "type": "boolean",
+    "equiv": "climate_state.auto_seat_climate_left",
+    "desc": "If the left front seat has auto seat climate enabled.",
+    "enum": ""
+  },
+  {
+    "field": "AutoSeatClimateRight",
+    "category": "Climate",
+    "type": "boolean",
+    "equiv": "climate_state.auto_seat_climate_right",
+    "desc": "If the right front seat has auto seat climate enabled.",
+    "enum": ""
+  },
+  {
+    "field": "AutomaticBlindSpotCamera",
+    "category": "Safety",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "Indicates whether the blind spot camera is enabled.",
+    "enum": ""
+  },
+  {
+    "field": "AutomaticEmergencyBrakingOff",
+    "category": "Safety",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "Indicates whether automatic emergency braking is disabled.",
+    "enum": ""
+  },
+  {
+    "field": "BMSState",
+    "category": "Charging",
+    "type": "enum",
+    "equiv": "",
+    "desc": "BMS operating state.",
+    "enum": "BMSStateValue"
+  },
+  {
+    "field": "BatteryHeaterOn",
+    "category": "Charging",
+    "type": "boolean",
+    "equiv": "climate_state.battery_heater_on",
+    "desc": "If the battery is actively heating itself. This may be done in cold weather or when preconditioning for supercharging. This field is not available on Pre-2021 Model S/X.",
+    "enum": ""
+  },
+  {
+    "field": "BatteryLevel",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "charge_state.battery_level",
+    "desc": "The state of charge of the vehicle, as a percent of total battery capacity.",
+    "enum": ""
+  },
+  {
+    "field": "BlindSpotCollisionWarningChime",
+    "category": "Safety",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "If the blindspot collision warning chime is enabled.",
+    "enum": ""
+  },
+  {
+    "field": "BmsFullchargecomplete",
+    "category": "Charging",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "Indicates BMS is fully charged.",
+    "enum": ""
+  },
+  {
+    "field": "BrakePedal",
+    "category": "Driving",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "Status of the brake pedal.",
+    "enum": ""
+  },
+  {
+    "field": "BrakePedalPos",
+    "category": "Driving",
+    "type": "real",
+    "equiv": "",
+    "desc": "Master cylinder pressure measured in the ESP.",
+    "enum": ""
+  },
+  {
+    "field": "BrickVoltageMax",
+    "category": "Charging",
+    "type": "integer",
+    "equiv": "",
+    "desc": "Brick voltage maximum.",
+    "enum": ""
+  },
+  {
+    "field": "BrickVoltageMin",
+    "category": "Charging",
+    "type": "integer",
+    "equiv": "",
+    "desc": "Brick voltage minimum.",
+    "enum": ""
+  },
+  {
+    "field": "CabinOverheatProtectionMode",
+    "category": "Climate",
+    "type": "enum",
+    "equiv": "climate_state.cabin_overheat_protection",
+    "desc": "The mode of cabin overheat protection.",
+    "enum": "CabinOverheatProtectionModeState"
+  },
+  {
+    "field": "CabinOverheatProtectionTemperatureLimit",
+    "category": "Climate",
+    "type": "enum",
+    "equiv": "climate_state.cop_activation_temperature",
+    "desc": "The temperature limit of cabin overheat protection, represented as low, medium, or high.",
+    "enum": "CabitOverheatProtectionTempLimit"
+  },
+  {
+    "field": "CarType",
+    "category": "Vehicle Configuration",
+    "type": "enum",
+    "equiv": "vehicle_config.car_type",
+    "desc": "The model of the vehicle.",
+    "enum": ""
+  },
+  {
+    "field": "CenterDisplay",
+    "category": "Vehicle State",
+    "type": "enum",
+    "equiv": "vehicle_state.center_display_state",
+    "desc": "The state of the center display.",
+    "enum": "DisplayState"
+  },
+  {
+    "field": "ChargeAmps",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "charge_state.charger_actual_current",
+    "desc": "AC charger's sensed input line current.",
+    "enum": ""
+  },
+  {
+    "field": "ChargeCurrentRequest",
+    "category": "Charging",
+    "type": "integer",
+    "equiv": "charge_state.charge_current_request",
+    "desc": "The requested amps to charge the vehicle.",
+    "enum": ""
+  },
+  {
+    "field": "ChargeCurrentRequestMax",
+    "category": "Charging",
+    "type": "integer",
+    "equiv": "charge_state.charge_current_request_max",
+    "desc": "The maximum available amps available to charge.",
+    "enum": ""
+  },
+  {
+    "field": "ChargeEnableRequest",
+    "category": "Charging",
+    "type": "boolean",
+    "equiv": "charge_state.charge_enable_request",
+    "desc": "If charging is enabled.",
+    "enum": ""
+  },
+  {
+    "field": "ChargeLimitSoc",
+    "category": "Charging",
+    "type": "integer",
+    "equiv": "charge_state.charge_limit_soc",
+    "desc": "The state of charge at which charging will terminate, as a percentage of battery capacity.",
+    "enum": ""
+  },
+  {
+    "field": "ChargePort",
+    "category": "Charging",
+    "type": "enum",
+    "equiv": "vehicle_config.charge_port_type",
+    "desc": "The type of charge port installed.",
+    "enum": "ChargePortValue"
+  },
+  {
+    "field": "ChargePortColdWeatherMode",
+    "category": "Charging",
+    "type": "boolean",
+    "equiv": "charge_state.charge_port_cold_weather_mode",
+    "desc": "Indicates whether the charge port is in cold weather mode.",
+    "enum": ""
+  },
+  {
+    "field": "ChargePortDoorOpen",
+    "category": "Charging",
+    "type": "boolean",
+    "equiv": "charge_state.charge_port_door_open",
+    "desc": "Indicates whether the charge port door is open based only on the door potentiometer.",
+    "enum": ""
+  },
+  {
+    "field": "ChargePortLatch",
+    "category": "Charging",
+    "type": "enum",
+    "equiv": "charge_state.charge_port_latch",
+    "desc": "Sensed state of the charge port latch. Early Model 3 vehicles will not latch in cold weather (below 5 degrees Celsius).",
+    "enum": "ChargePortLatchValue"
+  },
+  {
+    "field": "ChargeRateMilePerHour",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "charge_state.charge_rate",
+    "desc": "The number of miles being added per hour of charging, given the current charge rate.",
+    "enum": ""
+  },
+  {
+    "field": "ChargeState",
+    "category": "Charging",
+    "type": "string",
+    "equiv": "",
+    "desc": "The non-detailed charge state of the vehicle. See DetailedChargeState for detailed charge state data.",
+    "enum": ""
+  },
+  {
+    "field": "ChargerPhases",
+    "category": "Charging",
+    "type": "integer",
+    "equiv": "charge_state.charger_phases",
+    "desc": "The number of phases available from the connected charger.",
+    "enum": ""
+  },
+  {
+    "field": "ChargerVoltage",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "charge_state.charger_voltage",
+    "desc": "RMS value of AC charger's sensed input voltage. This field changes frequently, even when not charging. It is recommended to set minimum_delta, which is available on firmware version 2024.44.32 and later. Beginning with firmware version 2025.2.6, minimum_delta is set to 0.3 by default.",
+    "enum": ""
+  },
+  {
+    "field": "ChargingCableType",
+    "category": "Charging",
+    "type": "enum",
+    "equiv": "charge_state.conn_charge_cable",
+    "desc": "The type of charging cable connected to the vehicle. If no charging cable is present, Invalid will be returned.",
+    "enum": "CableType"
+  },
+  {
+    "field": "ClimateKeeperMode",
+    "category": "Climate",
+    "type": "enum",
+    "equiv": "climate_state.climate_keeper_mode",
+    "desc": "The climate keeper mode.",
+    "enum": "ClimateKeeperModeState"
+  },
+  {
+    "field": "ClimateSeatCoolingFrontLeft",
+    "category": "Climate",
+    "type": "integer",
+    "equiv": "climate_state.seat_fan_front_left",
+    "desc": "The seat cooling level requested by the front left seat.",
+    "enum": ""
+  },
+  {
+    "field": "ClimateSeatCoolingFrontRight",
+    "category": "Climate",
+    "type": "Integer",
+    "equiv": "climate_state.seat_fan_front_right",
+    "desc": "The seat cooling level requested by the front right seat.",
+    "enum": ""
+  },
+  {
+    "field": "CruiseFollowDistance",
+    "category": "Safety",
+    "type": "enum",
+    "equiv": "",
+    "desc": "The following distance selected in vehicle controls.",
+    "enum": "FollowDistance"
+  },
+  {
+    "field": "CruiseSetSpeed",
+    "category": "Driving",
+    "type": "real",
+    "equiv": "",
+    "desc": "Cruise control set point.",
+    "enum": ""
+  },
+  {
+    "field": "CurrentLimitMph",
+    "category": "Vehicle State",
+    "type": "real",
+    "equiv": "vehicle_state.speed_limit_mode.current_limit_mph",
+    "desc": "The maximum speed the vehicle is allowed to travel.",
+    "enum": ""
+  },
+  {
+    "field": "DCChargingEnergyIn",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "charge_state.charge_energy_added",
+    "desc": "The amount of energy in kWh added during a charging session. This is measured at the battery. It can be relied upon for both AC and DC charging.",
+    "enum": ""
+  },
+  {
+    "field": "DCChargingPower",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "charge_state.charger_power",
+    "desc": "The kilowatts added during a DC charging session.",
+    "enum": ""
+  },
+  {
+    "field": "DCDCEnable",
+    "category": "Charging",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "The state of the PCS's DCDC enable line.",
+    "enum": ""
+  },
+  {
+    "field": "DefrostForPreconditioning",
+    "category": "Climate",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "If the vehicle is defrosting due to preconditioning.",
+    "enum": ""
+  },
+  {
+    "field": "DefrostMode",
+    "category": "Climate",
+    "type": "enum",
+    "equiv": "climate_state.defrost_mode",
+    "desc": "The state of the vehicle defrost.",
+    "enum": "DefrostModeState"
+  },
+  {
+    "field": "DestinationLocation",
+    "category": "Location",
+    "type": "Location",
+    "equiv": "drive_state.active_route_latitude, drive_state.active_route_longitude",
+    "desc": "The coordinates of the current navigation route's destination. If no navigation destination is set, Invalid will be returned.",
+    "enum": ""
+  },
+  {
+    "field": "DestinationName",
+    "category": "Location",
+    "type": "string",
+    "equiv": "drive_state.active_route_destination",
+    "desc": "The name of the active navigation destination. If no destination is present, Invalid will be reported.",
+    "enum": ""
+  },
+  {
+    "field": "DetailedChargeState",
+    "category": "Charging",
+    "type": "enum",
+    "equiv": "",
+    "desc": "The detailed charge state, rather than ChargeState which provides little detail. This field is added in firmware version 2024.38.",
+    "enum": "DetailedChargeStateValue"
+  },
+  {
+    "field": "DiAxleSpeedF",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Front drive inverter motor speed normalized at axle level.",
+    "enum": ""
+  },
+  {
+    "field": "DiAxleSpeedR",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Rear drive inverter motor speed normalized at axle level.",
+    "enum": ""
+  },
+  {
+    "field": "DiAxleSpeedREL",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Rear Left drive inverter motor speed normalized at axle level.",
+    "enum": ""
+  },
+  {
+    "field": "DiAxleSpeedRER",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Rear Right drive inverter motor speed normalized at axle level.",
+    "enum": ""
+  },
+  {
+    "field": "DiHeatsinkTF",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Front drive inverter heatsink temperature.",
+    "enum": ""
+  },
+  {
+    "field": "DiHeatsinkTR",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Rear drive inverter heatsink temperature.",
+    "enum": ""
+  },
+  {
+    "field": "DiHeatsinkTREL",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Rear left drive inverter heatsink temperature.",
+    "enum": ""
+  },
+  {
+    "field": "DiHeatsinkTRER",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Rear right drive inverter heatsink temperature.",
+    "enum": ""
+  },
+  {
+    "field": "DiInverterTF",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Front drive inverter measured outlet temperature.",
+    "enum": ""
+  },
+  {
+    "field": "DiInverterTR",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Rear drive inverter measured outlet temperature.",
+    "enum": ""
+  },
+  {
+    "field": "DiInverterTREL",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Rear left drive inverter measured outlet temperature.",
+    "enum": ""
+  },
+  {
+    "field": "DiInverterTRER",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Rear right drive inverter measured outlet temperature.",
+    "enum": ""
+  },
+  {
+    "field": "DiMotorCurrentF",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Front drive inverter motor current.",
+    "enum": ""
+  },
+  {
+    "field": "DiMotorCurrentR",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Rear drive inverter motor current.",
+    "enum": ""
+  },
+  {
+    "field": "DiMotorCurrentREL",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Rear Left drive inverter motor current.",
+    "enum": ""
+  },
+  {
+    "field": "DiMotorCurrentRER",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Rear Right drive inverter motor current.",
+    "enum": ""
+  },
+  {
+    "field": "DiSlaveTorqueCmd",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Torque command to secondary drive unit.",
+    "enum": ""
+  },
+  {
+    "field": "DiStateF",
+    "category": "Powertrain",
+    "type": "enum",
+    "equiv": "",
+    "desc": "Front drive inverter state.",
+    "enum": "DriveInverterState"
+  },
+  {
+    "field": "DiStateR",
+    "category": "Powertrain",
+    "type": "enum",
+    "equiv": "",
+    "desc": "Rear drive inverter state.",
+    "enum": "DriveInverterState"
+  },
+  {
+    "field": "DiStateREL",
+    "category": "Powertrain",
+    "type": "enum",
+    "equiv": "",
+    "desc": "Rear Left drive inverter state.",
+    "enum": "DriveInverterState"
+  },
+  {
+    "field": "DiStateRER",
+    "category": "Powertrain",
+    "type": "enum",
+    "equiv": "",
+    "desc": "Rear Right drive inverter state.",
+    "enum": "DriveInverterState"
+  },
+  {
+    "field": "DiStatorTempF",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Front Drive Unit stator temperature.",
+    "enum": ""
+  },
+  {
+    "field": "DiStatorTempR",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Rear Drive Unit stator temperature.",
+    "enum": ""
+  },
+  {
+    "field": "DiStatorTempREL",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Rear Left Drive Unit stator temperature.",
+    "enum": ""
+  },
+  {
+    "field": "DiStatorTempRER",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Rear Right Drive Unit stator temperature.",
+    "enum": ""
+  },
+  {
+    "field": "DiTorqueActualF",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Actual torque the front drive unit is controlling to referred to the axle/wheel.",
+    "enum": ""
+  },
+  {
+    "field": "DiTorqueActualR",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Actual torque the rear drive unit is controlling to referred to the axle/wheel.",
+    "enum": ""
+  },
+  {
+    "field": "DiTorqueActualREL",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Actual torque the rear left drive unit is controlling to referred to the axle/wheel.",
+    "enum": ""
+  },
+  {
+    "field": "DiTorqueActualRER",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Actual torque the rear right drive unit is controlling to referred to the axle/wheel.",
+    "enum": ""
+  },
+  {
+    "field": "DiTorquemotor",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Torque commanded to the drive unit, referred to the axle/wheel.",
+    "enum": ""
+  },
+  {
+    "field": "DiVBatF",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Front drive inverter measured battery voltage.",
+    "enum": ""
+  },
+  {
+    "field": "DiVBatR",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Rear drive inverter measured battery voltage.",
+    "enum": ""
+  },
+  {
+    "field": "DiVBatREL",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Rear left drive inverter measured battery voltage.",
+    "enum": ""
+  },
+  {
+    "field": "DiVBatRER",
+    "category": "Powertrain",
+    "type": "real",
+    "equiv": "",
+    "desc": "Rear right drive inverter measured battery voltage.",
+    "enum": ""
+  },
+  {
+    "field": "DoorState",
+    "category": "Vehicle State",
+    "type": "string",
+    "equiv": "vehicle_state.df, vehicle_state.dr, vehicle_state.pf, vehicle_state.pr, vehicle_state.ft, vehicle_state.rt",
+    "desc": "The doors which are currently open. This field has passenger front and driver rear doors swapped in firmware versions prior to 2024.44.32.",
+    "enum": ""
+  },
+  {
+    "field": "DriveRail",
+    "category": "Driving",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "On/Off drive power state. All ECUs related to drive are ready/powered. Typically means brake pedal is pressed + key authenticated or driving.",
+    "enum": ""
+  },
+  {
+    "field": "DriverSeatBelt",
+    "category": "Safety",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "Indication that the driver has unbuckled their seat belt.",
+    "enum": ""
+  },
+  {
+    "field": "DriverSeatOccupied",
+    "category": "Vehicle State",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "Driver presence, determined by combination of sources depending on platform.",
+    "enum": ""
+  },
+  {
+    "field": "EfficiencyPackage",
+    "category": "Vehicle Configuration",
+    "type": "string",
+    "equiv": "vehicle_config.efficiency_package",
+    "desc": "The efficiency package of the vehicle. This is returned as a string since possible values vary by vehicle model and platform.",
+    "enum": ""
+  },
+  {
+    "field": "EmergencyLaneDepartureAvoidance",
+    "category": "Safety",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "If emergence lane keep assist is enabled.",
+    "enum": ""
+  },
+  {
+    "field": "EnergyRemaining",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "",
+    "desc": "The nominal energy remaining in the battery pack, measured in kWh.",
+    "enum": ""
+  },
+  {
+    "field": "EstBatteryRange",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "charge_state.est_battery_range",
+    "desc": "The estimated range of the vehicle given its current state of charge. Takes driving conditions into account.",
+    "enum": ""
+  },
+  {
+    "field": "EstimatedHoursToChargeTermination",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "",
+    "desc": "The number of hours until reaching the desired state of charge. Desired state of charge is defined by ChargeLimitSoc.",
+    "enum": ""
+  },
+  {
+    "field": "EuropeVehicle",
+    "category": "Vehicle Configuration",
+    "type": "boolean",
+    "equiv": "vehicle_config.eu_vehicle",
+    "desc": "If this vehicle is classified as a Europe vehicle.",
+    "enum": ""
+  },
+  {
+    "field": "ExpectedEnergyPercentAtTripArrival",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "drive_state.active_route_energy_at_arrival",
+    "desc": "The expected energy percentage upon arriving at destination. If no navigation destination is set, Invalid will be returned.",
+    "enum": ""
+  },
+  {
+    "field": "ExteriorColor",
+    "category": "Vehicle Configuration",
+    "type": "string",
+    "equiv": "vehicle_config.exterior_color",
+    "desc": "The exterior color of the vehicle.",
+    "enum": ""
+  },
+  {
+    "field": "FastChargerPresent",
+    "category": "Charging",
+    "type": "boolean",
+    "equiv": "charge_state.fast_charger_present",
+    "desc": "Is a fast charger is present.",
+    "enum": ""
+  },
+  {
+    "field": "FastChargerType",
+    "category": "Charging",
+    "type": "enum",
+    "equiv": "charge_state.fast_charger_type",
+    "desc": "The type of fast charger connected to the vehicle.",
+    "enum": "FastCharger"
+  },
+  {
+    "field": "FdWindow",
+    "category": "Vehicle State",
+    "type": "enum",
+    "equiv": "vehicle_state.fd_window",
+    "desc": "The state of the front driver window.",
+    "enum": "WindowState"
+  },
+  {
+    "field": "ForwardCollisionWarning",
+    "category": "Safety",
+    "type": "enum",
+    "equiv": "",
+    "desc": "The forward collision sensitivity selected in vehicle settings.",
+    "enum": "ForwardCollisionSensitivity"
+  },
+  {
+    "field": "FpWindow",
+    "category": "Vehicle State",
+    "type": "enum",
+    "equiv": "vehicle_state.fp_window",
+    "desc": "The state of the front passenger window.",
+    "enum": "WindowState"
+  },
+  {
+    "field": "Gear",
+    "category": "Driving",
+    "type": "enum",
+    "equiv": "drive_state.shift_state",
+    "desc": "Detects the current operating gear reported by the drive inverter.",
+    "enum": "ShiftState"
+  },
+  {
+    "field": "GpsHeading",
+    "category": "Location",
+    "type": "real",
+    "equiv": "drive_state.heading",
+    "desc": "The orientation of the vehicle. 0 represents North, 90 represents East, etc.",
+    "enum": ""
+  },
+  {
+    "field": "GpsState",
+    "category": "Location",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "If GPS lock is acquired.",
+    "enum": ""
+  },
+  {
+    "field": "GuestModeEnabled",
+    "category": "Vehicle State",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "If guest mode is enabled.",
+    "enum": ""
+  },
+  {
+    "field": "GuestModeMobileAccessState",
+    "category": "Vehicle State",
+    "type": "enum",
+    "equiv": "",
+    "desc": "The state of guest mode.",
+    "enum": "GuestModeMobileAccess"
+  },
+  {
+    "field": "HomelinkDeviceCount",
+    "category": "Vehicle State",
+    "type": "integer",
+    "equiv": "vehicle_state.homelink_nearby",
+    "desc": "The number of nearby homelink devices.",
+    "enum": ""
+  },
+  {
+    "field": "HomelinkNearby",
+    "category": "Vehicle State",
+    "type": "boolean",
+    "equiv": "vehicle_state.homelink_device_count",
+    "desc": "If a homelink device is nearby.",
+    "enum": ""
+  },
+  {
+    "field": "HvacACEnabled",
+    "category": "Climate",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "If AC is enabled.",
+    "enum": ""
+  },
+  {
+    "field": "HvacAutoMode",
+    "category": "Climate",
+    "type": "enum",
+    "equiv": "climate_state.hvac_auto_request",
+    "desc": "The state of HVAC auto mode.",
+    "enum": "HvacAutoModeState"
+  },
+  {
+    "field": "HvacFanSpeed",
+    "category": "Climate",
+    "type": "integer",
+    "equiv": "",
+    "desc": "The HVAC fan speed.",
+    "enum": ""
+  },
+  {
+    "field": "HvacFanStatus",
+    "category": "Climate",
+    "type": "integer",
+    "equiv": "climate_state.fan_status",
+    "desc": "Cabin airflow blower set speed segment.",
+    "enum": ""
+  },
+  {
+    "field": "HvacLeftTemperatureRequest",
+    "category": "Climate",
+    "type": "real",
+    "equiv": "climate_state.driver_temp_setting, climate_state.passenger_temp_setting",
+    "desc": "The requested temperature for the left front side of the vehicle. Reported in celsius. This differs slightly from the equivalent vehicle_data fields as it is based on the side of the vehicle instead of passenger/driver.",
+    "enum": ""
+  },
+  {
+    "field": "HvacPower",
+    "category": "Climate",
+    "type": "enum",
+    "equiv": "climate_state.is_climate_on",
+    "desc": "The power state of the HVAC system.",
+    "enum": "HvacPowerState"
+  },
+  {
+    "field": "HvacRightTemperatureRequest",
+    "category": "Climate",
+    "type": "real",
+    "equiv": "climate_state.driver_temp_setting, climate_state.passenger_temp_setting",
+    "desc": "The requested temperature for the right front side of the vehicle. Reported in celsius. This differs slightly from the equivalent vehicle_data fields as it is based on the side of the vehicle instead of passenger/driver.",
+    "enum": ""
+  },
+  {
+    "field": "HvacSteeringWheelHeatAuto",
+    "category": "Climate",
+    "type": "boolean",
+    "equiv": "climate_state.auto_steering_wheel_heat",
+    "desc": "If the steering wheel heat is set to auto.",
+    "enum": ""
+  },
+  {
+    "field": "HvacSteeringWheelHeatLevel",
+    "category": "Climate",
+    "type": "integer",
+    "equiv": "climate_state.steering_wheel_heat_level",
+    "desc": "The level of steering wheel heat.",
+    "enum": ""
+  },
+  {
+    "field": "Hvil",
+    "category": "Powertrain",
+    "type": "enum",
+    "equiv": "",
+    "desc": "The state of the high voltage interlock.",
+    "enum": "HvilStatus"
+  },
+  {
+    "field": "IdealBatteryRange",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "",
+    "desc": "The current range of the vehicle, assuming ideal conditions (speed, weather, etc).",
+    "enum": ""
+  },
+  {
+    "field": "InsideTemp",
+    "category": "Climate",
+    "type": "real",
+    "equiv": "climate_state.inside_temp",
+    "desc": "Estimated temperature of the cabin (in Celsius). This field frequently changes in small increments and setting a minimum delta is recommended. This field frequently changes in small increments and setting a minimum delta is recommended.",
+    "enum": ""
+  },
+  {
+    "field": "IsolationResistance",
+    "category": "Service",
+    "type": "real",
+    "equiv": "",
+    "desc": "Resistance between HV bus and chassis.",
+    "enum": ""
+  },
+  {
+    "field": "LaneDepartureAvoidance",
+    "category": "Safety",
+    "type": "enum",
+    "equiv": "",
+    "desc": "The lane assist level selected in vehicle settings.",
+    "enum": "LaneAssistLevel"
+  },
+  {
+    "field": "LateralAcceleration",
+    "category": "Driving",
+    "type": "real",
+    "equiv": "",
+    "desc": "The lateral acceleration of the vehicle measured in m/s^2.",
+    "enum": ""
+  },
+  {
+    "field": "LifetimeEnergyUsed",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "",
+    "desc": "Total energy-lost kWh count during discharging.",
+    "enum": ""
+  },
+  {
+    "field": "LifetimeEnergyUsedDrive",
+    "category": "Driving",
+    "type": "real",
+    "equiv": "",
+    "desc": "Energy (in kWh) discharged from the battery packs while the vehicle is in a drive power state. Semi-truck only.",
+    "enum": ""
+  },
+  {
+    "field": "LightsHazardsActive",
+    "category": "Vehicle State",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "If the vehicle's hazard lights are activated.",
+    "enum": ""
+  },
+  {
+    "field": "LightsHighBeams",
+    "category": "Vehicle State",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "If the vehicle's high beams are activated.",
+    "enum": ""
+  },
+  {
+    "field": "LightsTurnSignal",
+    "category": "Vehicle State",
+    "type": "enum",
+    "equiv": "",
+    "desc": "The state of turn signals. Left, right, both, none.",
+    "enum": "TurnSignalState"
+  },
+  {
+    "field": "LocatedAtFavorite",
+    "category": "Location",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "If the vehicle is located at a favorite location of the active driver profile.",
+    "enum": ""
+  },
+  {
+    "field": "LocatedAtHome",
+    "category": "Location",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "If the vehicle is located at the active driver profile\u2019s saved home location.",
+    "enum": ""
+  },
+  {
+    "field": "LocatedAtWork",
+    "category": "Location",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "If the vehicle is located at the active driver profile\u2019s saved work location.",
+    "enum": ""
+  },
+  {
+    "field": "Location",
+    "category": "Location",
+    "type": "enum",
+    "equiv": "drive_state.latitude, drive_state.longitude",
+    "desc": "The latitude and longitude of the vehicle. Beginning with firmware version 2025.2.6, specifying minimum delta for location values is possible. Changes in distance are measured in meters.",
+    "enum": "LocationValue"
+  },
+  {
+    "field": "Locked",
+    "category": "Safety",
+    "type": "boolean",
+    "equiv": "vehicle_state.locked",
+    "desc": "If the vehicle is locked.",
+    "enum": ""
+  },
+  {
+    "field": "LongitudinalAcceleration",
+    "category": "Driving",
+    "type": "real",
+    "equiv": "",
+    "desc": "The longitudinal acceleration of the vehicle measured in m/s^2.",
+    "enum": ""
+  },
+  {
+    "field": "MediaAudioVolume",
+    "category": "Media",
+    "type": "real",
+    "equiv": "media_info.audio_volume",
+    "desc": "The volume of in-cabin audio measured from 0-11.",
+    "enum": ""
+  },
+  {
+    "field": "MediaAudioVolumeIncrement",
+    "category": "Media",
+    "type": "real",
+    "equiv": "media_info.audio_volume_increment",
+    "desc": "The size of volume increments or decrements.",
+    "enum": ""
+  },
+  {
+    "field": "MediaAudioVolumeMax",
+    "category": "Media",
+    "type": "real",
+    "equiv": "media_info.audio_volume_max",
+    "desc": "The maximum volume available to be selected.",
+    "enum": ""
+  },
+  {
+    "field": "MediaNowPlayingAlbum",
+    "category": "Media",
+    "type": "string",
+    "equiv": "media_info.now_playing_album",
+    "desc": "The album of the current track.",
+    "enum": ""
+  },
+  {
+    "field": "MediaNowPlayingArtist",
+    "category": "Media",
+    "type": "string",
+    "equiv": "media_info.now_playing_artist",
+    "desc": "The artist of the current track.",
+    "enum": ""
+  },
+  {
+    "field": "MediaNowPlayingDuration",
+    "category": "Media",
+    "type": "integer",
+    "equiv": "media_info.now_playing_duration",
+    "desc": "The length of the current track measured in milliseconds. For radio stations which do not have a duration, 18000000 is reported.",
+    "enum": ""
+  },
+  {
+    "field": "MediaNowPlayingElapsed",
+    "category": "Media",
+    "type": "integer",
+    "equiv": "media_info.now_playing_elapsed",
+    "desc": "The playback position in the current track, measured in milliseconds. The value returned while listening to a radio station may be nonsensical.",
+    "enum": ""
+  },
+  {
+    "field": "MediaNowPlayingStation",
+    "category": "Media",
+    "type": "string",
+    "equiv": "media_info.now_playing_station",
+    "desc": "The station playing media.",
+    "enum": ""
+  },
+  {
+    "field": "MediaNowPlayingTitle",
+    "category": "Media",
+    "type": "string",
+    "equiv": "media_info.now_playing_title",
+    "desc": "The title of the current track.",
+    "enum": ""
+  },
+  {
+    "field": "MediaPlaybackSource",
+    "category": "Media",
+    "type": "string",
+    "equiv": "media_info.now_playing_source",
+    "desc": "The source actively being used for playing media.",
+    "enum": ""
+  },
+  {
+    "field": "MediaPlaybackStatus",
+    "category": "Media",
+    "type": "enum",
+    "equiv": "media_info.media_playback_status",
+    "desc": "The state of media playback.",
+    "enum": "MediaStatus"
+  },
+  {
+    "field": "MilesSinceReset",
+    "category": "Safety",
+    "type": "real",
+    "equiv": "",
+    "desc": "The total number of miles driven since the Self-Driving statistics were reset. A reset may occur for certain software updates, car computer replacement, factory reset, or other triggers. This field is only available on HW4 vehicles running firmware version 2025.44.25.5 or later.",
+    "enum": ""
+  },
+  {
+    "field": "MilesToArrival",
+    "category": "Location",
+    "type": "real",
+    "equiv": "drive_state.active_route_miles_to_arrival",
+    "desc": "The miles until arriving at the navigation destination. If no navigation destination is set, Invalid will be returned.",
+    "enum": ""
+  },
+  {
+    "field": "MinutesToArrival",
+    "category": "Location",
+    "type": "real",
+    "equiv": "drive_state.active_route_minutes_to_arrival",
+    "desc": "The minutes until arriving at the navigation destination. If no navigation destination is set, Invalid will be returned.",
+    "enum": ""
+  },
+  {
+    "field": "ModuleTempMax",
+    "category": "Charging",
+    "type": "integer",
+    "equiv": "",
+    "desc": "The maximum thermistor temperature.",
+    "enum": ""
+  },
+  {
+    "field": "ModuleTempMin",
+    "category": "Charging",
+    "type": "integer",
+    "equiv": "",
+    "desc": "The minimum thermistor temperature.",
+    "enum": ""
+  },
+  {
+    "field": "NotEnoughPowerToHeat",
+    "category": "Charging",
+    "type": "boolean",
+    "equiv": "charge_state.not_enough_power_to_heat",
+    "desc": "If the battery does not have enough power available to heat itself.",
+    "enum": ""
+  },
+  {
+    "field": "NumBrickVoltageMax",
+    "category": "Charging",
+    "type": "integer",
+    "equiv": "",
+    "desc": "Brick number with maximum voltage (1 indexed).",
+    "enum": ""
+  },
+  {
+    "field": "NumBrickVoltageMin",
+    "category": "Charging",
+    "type": "integer",
+    "equiv": "",
+    "desc": "Brick number with minimum voltage (1 indexed).",
+    "enum": ""
+  },
+  {
+    "field": "NumModuleTempMax",
+    "category": "Charging",
+    "type": "integer",
+    "equiv": "",
+    "desc": "The max thermistor temperature module ID.",
+    "enum": ""
+  },
+  {
+    "field": "NumModuleTempMin",
+    "category": "Charging",
+    "type": "integer",
+    "equiv": "",
+    "desc": "The min thermistor temperature module ID.",
+    "enum": ""
+  },
+  {
+    "field": "Odometer",
+    "category": "Vehicle State",
+    "type": "real",
+    "equiv": "vehicle_state.odometer",
+    "desc": "The number of miles the vehicle has driven. Beginning with firmware version 2025.2.6, the minimum delta for Odometer is set to 0.1 by default.",
+    "enum": ""
+  },
+  {
+    "field": "OffroadLightbarPresent",
+    "category": "Vehicle Configuration",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "Report whether the offroad light bar is detected.",
+    "enum": ""
+  },
+  {
+    "field": "OriginLocation",
+    "category": "Location",
+    "type": "enum",
+    "equiv": "",
+    "desc": "The coordinates of the current navigation route's origin.",
+    "enum": ""
+  },
+  {
+    "field": "OutsideTemp",
+    "category": "Climate",
+    "type": "real",
+    "equiv": "climate_state.outside_temp",
+    "desc": "Filtered ambient temperature based on vehicle speed.",
+    "enum": ""
+  },
+  {
+    "field": "PackCurrent",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "",
+    "desc": "Current measured at the HV contactors of the HV battery.",
+    "enum": ""
+  },
+  {
+    "field": "PackVoltage",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "",
+    "desc": "Voltage measured on the battery side of the HV contactors.",
+    "enum": ""
+  },
+  {
+    "field": "PairedPhoneKeyAndKeyFobQty",
+    "category": "Vehicle State",
+    "type": "integer",
+    "equiv": "",
+    "desc": "The number of phone keys and key fobs paired to the vehicle.",
+    "enum": ""
+  },
+  {
+    "field": "PassengerSeatBelt",
+    "category": "Safety",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "This field improperly reports if the 2nd row center seat belt is buckled.",
+    "enum": ""
+  },
+  {
+    "field": "PedalPosition",
+    "category": "Driving",
+    "type": "real",
+    "equiv": "",
+    "desc": "The position of the accelerator pedal.",
+    "enum": ""
+  },
+  {
+    "field": "PinToDriveEnabled",
+    "category": "Safety",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "If pin to drive mode is enabled. Pin to drive requires entering a pin before shifting the vehicle out of park.",
+    "enum": ""
+  },
+  {
+    "field": "PowershareHoursLeft",
+    "category": "Charging",
+    "type": "integer",
+    "equiv": "",
+    "desc": "The number of hours remaining through Powershare.",
+    "enum": ""
+  },
+  {
+    "field": "PowershareInstantaneousPowerKW",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "",
+    "desc": "Displays the current AC real power output from Power Conversion System 2 (PCS2) in Vehicle-to-Everything (V2X) mode. A positive value indicates battery discharge (power flowing out of the battery).",
+    "enum": ""
+  },
+  {
+    "field": "PowershareStatus",
+    "category": "Charging",
+    "type": "enum",
+    "equiv": "",
+    "desc": "The state of Powershare.",
+    "enum": "PowershareState"
+  },
+  {
+    "field": "PowershareStopReason",
+    "category": "Charging",
+    "type": "enum",
+    "equiv": "",
+    "desc": "The reason Powershare has stopped.",
+    "enum": "PowershareStopReasonStatus"
+  },
+  {
+    "field": "PowershareType",
+    "category": "Charging",
+    "type": "enum",
+    "equiv": "",
+    "desc": "The type of Powershare currently active.",
+    "enum": "PowershareTypeStatus"
+  },
+  {
+    "field": "PreconditioningEnabled",
+    "category": "Charging",
+    "type": "boolean",
+    "equiv": "charge_state.preconditioning_enabled",
+    "desc": "If the vehicle is preconditioning.",
+    "enum": ""
+  },
+  {
+    "field": "RatedRange",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "charge_state.battery_range",
+    "desc": "The officially rated range of the vehicle given its current state of charge.",
+    "enum": ""
+  },
+  {
+    "field": "RdWindow",
+    "category": "Vehicle State",
+    "type": "enum",
+    "equiv": "vehicle_state.rd_window",
+    "desc": "The state of the rear driver window.",
+    "enum": "WindowState"
+  },
+  {
+    "field": "RearDefrostEnabled",
+    "category": "Climate",
+    "type": "boolean",
+    "equiv": "climate_state.is_rear_defroster_on",
+    "desc": "If rear defrost is enabled.",
+    "enum": ""
+  },
+  {
+    "field": "RearDisplayHvacEnabled",
+    "category": "Climate",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "If HVAC is enabled on the rear display.",
+    "enum": ""
+  },
+  {
+    "field": "RearSeatHeaters",
+    "category": "Vehicle Configuration",
+    "type": "string",
+    "equiv": "vehicle_config.rear_seat_heaters",
+    "desc": "The rear seat heater package installed on the vehicle.",
+    "enum": ""
+  },
+  {
+    "field": "RemoteStartEnabled",
+    "category": "Vehicle Configuration",
+    "type": "boolean",
+    "equiv": "vehicle_state.remote_start_enabled",
+    "desc": "If the vehicle is being driven without a physical key.",
+    "enum": ""
+  },
+  {
+    "field": "RightHandDrive",
+    "category": "Vehicle Configuration",
+    "type": "boolean",
+    "equiv": "vehicle_config.rhd",
+    "desc": "If the vehicle is a right hand drive vehicle.",
+    "enum": ""
+  },
+  {
+    "field": "RoofColor",
+    "category": "Vehicle Configuration",
+    "type": "string",
+    "equiv": "vehicle_config.roof_color",
+    "desc": "The color of the roof.",
+    "enum": ""
+  },
+  {
+    "field": "RouteLastUpdated",
+    "category": "Location",
+    "type": "timestamp",
+    "equiv": "",
+    "desc": "This field is broken and does not return data.",
+    "enum": ""
+  },
+  {
+    "field": "RouteLine",
+    "category": "Location",
+    "type": "string",
+    "equiv": "",
+    "desc": "A base64 encoded polyline of the active navigation route. To extract coordinates, decode the base64 and use Google's polyline decoding algorithm. Precision 6 is used.",
+    "enum": ""
+  },
+  {
+    "field": "RouteTrafficMinutesDelay",
+    "category": "Driving",
+    "type": "real",
+    "equiv": "drive_state.active_route_traffic_minutes_delay",
+    "desc": "The number of minutes delay on the active navigation route.",
+    "enum": ""
+  },
+  {
+    "field": "RpWindow",
+    "category": "Vehicle State",
+    "type": "enum",
+    "equiv": "vehicle_state.rp_window",
+    "desc": "The state of the rear passenger window.",
+    "enum": "WindowState"
+  },
+  {
+    "field": "ScheduledChargingMode",
+    "category": "Charging",
+    "type": "enum",
+    "equiv": "charge_state.scheduled_charging_mode",
+    "desc": "The mode for scheduled charging.",
+    "enum": "ScheduledChargingModeValue"
+  },
+  {
+    "field": "ScheduledChargingPending",
+    "category": "Charging",
+    "type": "boolean",
+    "equiv": "charge_state.scheduled_charging_pending",
+    "desc": "If a charge session is scheduled.",
+    "enum": ""
+  },
+  {
+    "field": "ScheduledChargingStartTime",
+    "category": "Charging",
+    "type": "timestamp",
+    "equiv": "charge_state.scheduled_charging_start_time",
+    "desc": "The time charging is scheduled to begin. Timestamp fields report incorrectly. Treating the reported value as Pacific Time will yield the date and time in the vehicle's timezone.",
+    "enum": ""
+  },
+  {
+    "field": "SeatHeaterLeft",
+    "category": "Climate",
+    "type": "integer",
+    "equiv": "climate_state.seat_heater_left",
+    "desc": "The level of the front left seat heater. Values range from 0 (off) to 3 (high).",
+    "enum": ""
+  },
+  {
+    "field": "SeatHeaterRearCenter",
+    "category": "Climate",
+    "type": "integer",
+    "equiv": "climate_state.seat_heater_rear_center",
+    "desc": "The level of the rear center seat heater. Values range from 0 (off) to 3 (high).",
+    "enum": ""
+  },
+  {
+    "field": "SeatHeaterRearLeft",
+    "category": "Climate",
+    "type": "integer",
+    "equiv": "climate_state.seat_heater_rear_left",
+    "desc": "The level of the rear left seat heater. Values range from 0 (off) to 3 (high).",
+    "enum": ""
+  },
+  {
+    "field": "SeatHeaterRearRight",
+    "category": "Climate",
+    "type": "integer",
+    "equiv": "climate_state.seat_heater_rear_right",
+    "desc": "The level of the rear right seat heater. Values range from 0 (off) to 3 (high).",
+    "enum": ""
+  },
+  {
+    "field": "SeatHeaterRight",
+    "category": "Climate",
+    "type": "integer",
+    "equiv": "climate_state.seat_heater_right",
+    "desc": "The level of the right seat heater. Values range from 0 (off) to 3 (high).",
+    "enum": ""
+  },
+  {
+    "field": "SeatVentEnabled",
+    "category": "Climate",
+    "type": "boolean",
+    "equiv": "",
+    "desc": "If front seat ventilation is enabled.",
+    "enum": ""
+  },
+  {
+    "field": "SelfDrivingMilesSinceReset",
+    "category": "Safety",
+    "type": "real",
+    "equiv": "",
+    "desc": "The total number of miles driven using Full Self-Driving since the Self-Driving statistics were reset. A reset may occur for certain software updates, car computer replacement, factory reset, or other triggers. This field requires minimum_delta to be explicitly set to a value >= 1 and is only available on HW4 vehicles running firmware version 2025.44.25.5 or later.",
+    "enum": ""
+  },
+  {
+    "field": "SemitruckPassengerSeatFoldPosition",
+    "category": "Vehicle State",
+    "type": "enum",
+    "equiv": "",
+    "desc": "Status of the Semi passenger seat position.",
+    "enum": ""
+  },
+  {
+    "field": "SemitruckTpmsPressureRe1L0",
+    "category": "Service",
+    "type": "real",
+    "equiv": "",
+    "desc": "The last measured tire pressure of the Semi's middle axle left tire(s) in bar. L0 and L1 report measurements from one tire each from the dually.",
+    "enum": ""
+  },
+  {
+    "field": "SemitruckTpmsPressureRe1L1",
+    "category": "Service",
+    "type": "real",
+    "equiv": "",
+    "desc": "The last measured tire pressure of the Semi's middle axle left tire(s) in bar. L0 and L1 report measurements from one tire each from the dually.",
+    "enum": ""
+  },
+  {
+    "field": "SemitruckTpmsPressureRe1R0",
+    "category": "Service",
+    "type": "real",
+    "equiv": "",
+    "desc": "The last measured tire pressure of the Semi's middle axle right tire(s) in bar. R0 and R1 report measurements from one tire each from the dually.",
+    "enum": ""
+  },
+  {
+    "field": "SemitruckTpmsPressureRe1R1",
+    "category": "Service",
+    "type": "real",
+    "equiv": "",
+    "desc": "The last measured tire pressure of the Semi's middle axle right tire(s) in bar. R0 and R1 report measurements from one tire each from the dually.",
+    "enum": ""
+  },
+  {
+    "field": "SemitruckTpmsPressureRe2L0",
+    "category": "Service",
+    "type": "real",
+    "equiv": "",
+    "desc": "The last measured tire pressure of the Semi's rear axle left tire(s) in bar. L0 and L1 report measurements from one tire each from the dually.",
+    "enum": ""
+  },
+  {
+    "field": "SemitruckTpmsPressureRe2L1",
+    "category": "Service",
+    "type": "real",
+    "equiv": "",
+    "desc": "The last measured tire pressure of the Semi's rear axle left tire(s) in bar. L0 and L1 report measurements from one tire each from the dually.",
+    "enum": ""
+  },
+  {
+    "field": "SemitruckTpmsPressureRe2R0",
+    "category": "Service",
+    "type": "real",
+    "equiv": "",
+    "desc": "The last measured tire pressure of the Semi's rear axle right tire(s) in bar. R0 and R1 report measurements from one tire each from the dually.",
+    "enum": ""
+  },
+  {
+    "field": "SemitruckTpmsPressureRe2R1",
+    "category": "Service",
+    "type": "real",
+    "equiv": "",
+    "desc": "The last measured tire pressure of the Semi's rear axle right tire(s) in bar. R0 and R1 report measurements from one tire each from the dually.",
+    "enum": ""
+  },
+  {
+    "field": "SemitruckTractorParkBrakeStatus",
+    "category": "Vehicle State",
+    "type": "enum",
+    "equiv": "",
+    "desc": "The state of the Semi's tractor park brake.",
+    "enum": ""
+  },
+  {
+    "field": "SemitruckTrailerParkBrakeStatus",
+    "category": "Vehicle State",
+    "type": "enum",
+    "equiv": "",
+    "desc": "The state of the Semi's trailer park brake.",
+    "enum": ""
+  },
+  {
+    "field": "SentryMode",
+    "category": "Vehicle State",
+    "type": "enum",
+    "equiv": "vehicle_state.sentry_mode",
+    "desc": "The current state of sentry mode.",
+    "enum": "SentryModeState"
+  },
+  {
+    "field": "ServiceMode",
+    "category": "Vehicle State",
+    "type": "boolean",
+    "equiv": "vehicle_state.service_mode",
+    "desc": "If service mode is enabled.",
+    "enum": ""
+  },
+  {
+    "field": "Setting24HourTime",
+    "category": "User Preference",
+    "type": "boolean",
+    "equiv": "gui_settings.gui_24_hour_time",
+    "desc": "If 24 hour time is preferred for displaying time.",
+    "enum": ""
+  },
+  {
+    "field": "SettingChargeUnit",
+    "category": "User Preference",
+    "type": "enum",
+    "equiv": "gui_settings.gui_charge_rate_units",
+    "desc": "The preferred unit for displaying charge range.",
+    "enum": "ChargeUnitPreference"
+  },
+  {
+    "field": "SettingDistanceUnit",
+    "category": "User Preference",
+    "type": "enum",
+    "equiv": "gui_settings.gui_distance_units",
+    "desc": "The units the vehicle uses when displaying distance.",
+    "enum": "DistanceUnit"
+  },
+  {
+    "field": "SettingTemperatureUnit",
+    "category": "User Preference",
+    "type": "enum",
+    "equiv": "gui_settings.gui_temperature_units",
+    "desc": "The preferred unit for displaying temperature data.",
+    "enum": "TemperatureUnit"
+  },
+  {
+    "field": "SettingTirePressureUnit",
+    "category": "User Preference",
+    "type": "enum",
+    "equiv": "gui_settings.gui_tirepressure_units",
+    "desc": "The preferred unit for displaying pressure data.",
+    "enum": "PressureUnit"
+  },
+  {
+    "field": "Soc",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "charge_state.usable_battery_level",
+    "desc": "The usable state of charge of the vehicle, as a percent of total battery capacity.",
+    "enum": ""
+  },
+  {
+    "field": "SoftwareUpdateDownloadPercentComplete",
+    "category": "Vehicle State",
+    "type": "integer",
+    "equiv": "vehicle_state.software_update.download_perc",
+    "desc": "The percent of the software update that has been downloaded. Note: during the download of one software update, this value will go from 0-100% multiple times.",
+    "enum": ""
+  },
+  {
+    "field": "SoftwareUpdateExpectedDurationMinutes",
+    "category": "Vehicle State",
+    "type": "integer",
+    "equiv": "vehicle_state.software_update.expected_duration_sec",
+    "desc": "The number of minutes a software update is estimated to take.",
+    "enum": ""
+  },
+  {
+    "field": "SoftwareUpdateInstallationPercentComplete",
+    "category": "Vehicle State",
+    "type": "integer",
+    "equiv": "vehicle_state.software_update.install_perc",
+    "desc": "The percent a software update has finished installing. Vehicles will not remain connected to Fleet Telemetry for the entire duration of a software update.",
+    "enum": ""
+  },
+  {
+    "field": "SoftwareUpdateScheduledStartTime",
+    "category": "Vehicle State",
+    "type": "long",
+    "equiv": "vehicle_state.software_update.scheduled_time_ms",
+    "desc": "The time a software update is scheduled to begin installing. Timestamp fields report incorrectly. Treating the reported value as Pacific Time will yield the date and time in the vehicle's timezone.",
+    "enum": ""
+  },
+  {
+    "field": "SoftwareUpdateVersion",
+    "category": "Vehicle State",
+    "type": "string",
+    "equiv": "vehicle_state.software_update.version",
+    "desc": "The version of an available software update.",
+    "enum": ""
+  },
+  {
+    "field": "SpeedLimitMode",
+    "category": "Vehicle State",
+    "type": "boolean",
+    "equiv": "vehicle_state.speed_limit_mode.active",
+    "desc": "If speed limit mode is enabled.",
+    "enum": ""
+  },
+  {
+    "field": "SpeedLimitWarning",
+    "category": "Safety",
+    "type": "enum",
+    "equiv": "",
+    "desc": "The speed assist level selected in vehicle settings.",
+    "enum": "SpeedAssistLevel"
+  },
+  {
+    "field": "SunroofInstalled",
+    "category": "Vehicle Configuration",
+    "type": "enum",
+    "equiv": "vehicle_config.sun_roof_installed",
+    "desc": "The installation state of a sunroof.",
+    "enum": "SunroofInstalledState"
+  },
+  {
+    "field": "SuperchargerSessionTripPlanner",
+    "category": "Charging",
+    "type": "boolean",
+    "equiv": "charge_state.supercharger_session_trip_planner",
+    "desc": "If the current supercharging session is part of a trip plan.",
+    "enum": ""
+  },
+  {
+    "field": "TimeToFullCharge",
+    "category": "Charging",
+    "type": "real",
+    "equiv": "charge_state.minutes_to_full_charge, charge_state.time_to_full_charge",
+    "desc": "The number of hours until charging is complete. If the charge session is part of a trip, this is the time until ready to continue. Otherwise, this is time until the user set limit (specified by ChargeLimitSoc).",
+    "enum": ""
+  },
+  {
+    "field": "TonneauOpenPercent",
+    "category": "Vehicle State",
+    "type": "real",
+    "equiv": "",
+    "desc": "The percent the Cybertruck's tonneau cover is open.",
+    "enum": ""
+  },
+  {
+    "field": "TonneauPosition",
+    "category": "Vehicle State",
+    "type": "enum",
+    "equiv": "",
+    "desc": "The state of the Cybertruck's tonneau.",
+    "enum": "TonneauPositionState"
+  },
+  {
+    "field": "TonneauTentMode",
+    "category": "Vehicle State",
+    "type": "enum",
+    "equiv": "",
+    "desc": "State of the Cybertruck's tonneau in relationship to tent mode.",
+    "enum": "TonneauTentModeState"
+  },
+  {
+    "field": "TpmsHardWarnings",
+    "category": "Service",
+    "type": "enum",
+    "equiv": "vehicle_state.tpms_hard_warning_fl, vehicle_state.tpms_hard_warning_fr, vehicle_state.tpms_hard_warning_rl, vehicle_state.tpms_hard_warning_rr",
+    "desc": "Indicates a tire's pressure needs to be inspected and is severely out of nominal range.",
+    "enum": "TireLocation"
+  },
+  {
+    "field": "TpmsLastSeenPressureTimeFl",
+    "category": "Service",
+    "type": "timestamp",
+    "equiv": "vehicle_state.tpms_last_seen_pressure_time_fl",
+    "desc": "The time the front left tire's pressure was last measured. Timestamp fields report incorrectly. Treating the reported value as Pacific Time will yield the date and time in the vehicle's timezone.",
+    "enum": ""
+  },
+  {
+    "field": "TpmsLastSeenPressureTimeFr",
+    "category": "Service",
+    "type": "timestamp",
+    "equiv": "vehicle_state.tpms_last_seen_pressure_time_fr",
+    "desc": "The time the front right tire's pressure was last measured. Timestamp fields report incorrectly. Treating the reported value as Pacific Time will yield the date and time in the vehicle's timezone.",
+    "enum": ""
+  },
+  {
+    "field": "TpmsLastSeenPressureTimeRl",
+    "category": "Service",
+    "type": "timestamp",
+    "equiv": "vehicle_state.tpms_last_seen_pressure_time_rl",
+    "desc": "The time the rear left tire's pressure was last measured. Timestamp fields report incorrectly. Treating the reported value as Pacific Time will yield the date and time in the vehicle's timezone.",
+    "enum": ""
+  },
+  {
+    "field": "TpmsLastSeenPressureTimeRr",
+    "category": "Service",
+    "type": "timestamp",
+    "equiv": "vehicle_state.tpms_last_seen_pressure_time_rr",
+    "desc": "The time the rear right tire's pressure was last measured. Timestamp fields report incorrectly. Treating the reported value as Pacific Time will yield the date and time in the vehicle's timezone.",
+    "enum": ""
+  },
+  {
+    "field": "TpmsPressureFl",
+    "category": "Service",
+    "type": "real",
+    "equiv": "vehicle_state.tpms_pressure_fl",
+    "desc": "The last measured tire pressure of the front left tire in bar.",
+    "enum": ""
+  },
+  {
+    "field": "TpmsPressureFr",
+    "category": "Service",
+    "type": "real",
+    "equiv": "vehicle_state.tpms_pressure_fr",
+    "desc": "The last measured tire pressure of the front right tire in bar.",
+    "enum": ""
+  },
+  {
+    "field": "TpmsPressureRl",
+    "category": "Service",
+    "type": "real",
+    "equiv": "vehicle_state.tpms_pressure_rl",
+    "desc": "The last measured tire pressure of the rear left tire in bar. Not relevant for Semi-trucks.",
+    "enum": ""
+  },
+  {
+    "field": "TpmsPressureRr",
+    "category": "Service",
+    "type": "real",
+    "equiv": "vehicle_state.tpms_pressure_fr",
+    "desc": "The last measured tire pressure of the rear right tire in bar. Not relevant for Semi-trucks.",
+    "enum": ""
+  },
+  {
+    "field": "TpmsSoftWarnings",
+    "category": "Service",
+    "type": "enum",
+    "equiv": "vehicle_state.tpms_soft_warning_fl, vehicle_state.tpms_soft_warning_fr, vehicle_state.tpms_soft_warning_rl, vehicle_state.tpms_soft_warning_rr",
+    "desc": "Indicates a tire's pressure needs to be inspected and is slightly out of nominal range.",
+    "enum": "TireLocation"
+  },
+  {
+    "field": "Trim",
+    "category": "Vehicle Configuration",
+    "type": "string",
+    "equiv": "vehicle_config.trim_badging",
+    "desc": "The trim of the vehicle.",
+    "enum": ""
+  },
+  {
+    "field": "ValetModeEnabled",
+    "category": "Vehicle State",
+    "type": "boolean",
+    "equiv": "vehicle_state.valet_mode",
+    "desc": "If valet mode is enabled.",
+    "enum": ""
+  },
+  {
+    "field": "VehicleName",
+    "category": "Vehicle Configuration",
+    "type": "string",
+    "equiv": "vehicle_state.vehicle_name",
+    "desc": "The nickname of the vehicle.",
+    "enum": ""
+  },
+  {
+    "field": "VehicleSpeed",
+    "category": "Driving",
+    "type": "real",
+    "equiv": "drive_state.speed",
+    "desc": "The speed of the vehicle is miles per hour.",
+    "enum": ""
+  },
+  {
+    "field": "Version",
+    "category": "Vehicle Configuration",
+    "type": "string",
+    "equiv": "vehicle_state.car_version",
+    "desc": "The current firmware version of the vehicle. In firmware versions earlier than 2024.44, this field returned the version of an available software update. This data is available through SoftwareUpdateVersion.",
+    "enum": ""
+  },
+  {
+    "field": "WheelType",
+    "category": "Vehicle Configuration",
+    "type": "string",
+    "equiv": "vehicle_config.wheel_type",
+    "desc": "The type of wheel installed on the vehicle.",
+    "enum": ""
+  },
+  {
+    "field": "WiperHeatEnabled",
+    "category": "Climate",
+    "type": "boolean",
+    "equiv": "climate_state.wiper_blade_heater",
+    "desc": "If the wiper heater are turned on.",
+    "enum": ""
+  },
+  {
+    "field": "SteeringAngle",
+    "category": "Drive",
+    "type": "real",
+    "equiv": "vehicle_state.steering_angle",
+    "desc": "Steering wheel angle in degrees. Positive = clockwise, negative = counter-clockwise.",
+    "enum": ""
+  },
+  {
+    "field": "LifetimeEnergyGainedRegen",
+    "category": "Drive",
+    "type": "real",
+    "equiv": "drive_state.lifetime_energy_gained_regen",
+    "desc": "Total energy recovered from regenerative braking, in kWh.",
+    "enum": ""
+  },
+  {
+    "field": "AirSuspensionHeightFL",
+    "category": "Suspension",
+    "type": "real",
+    "equiv": "vehicle_state.air_suspension_height_fl",
+    "desc": "Front left air-suspension ride height in mm above ground.",
+    "enum": ""
+  },
+  {
+    "field": "AirSuspensionHeightFR",
+    "category": "Suspension",
+    "type": "real",
+    "equiv": "vehicle_state.air_suspension_height_fr",
+    "desc": "Front right air-suspension ride height in mm above ground.",
+    "enum": ""
+  },
+  {
+    "field": "AirSuspensionHeightRL",
+    "category": "Suspension",
+    "type": "real",
+    "equiv": "vehicle_state.air_suspension_height_rl",
+    "desc": "Rear left air-suspension ride height in mm above ground.",
+    "enum": ""
+  },
+  {
+    "field": "AirSuspensionHeightRR",
+    "category": "Suspension",
+    "type": "real",
+    "equiv": "vehicle_state.air_suspension_height_rr",
+    "desc": "Rear right air-suspension ride height in mm above ground.",
+    "enum": ""
+  },
+  {
+    "field": "AirSuspensionCompressorState",
+    "category": "Suspension",
+    "type": "string",
+    "equiv": "vehicle_state.air_suspension_compressor_state",
+    "desc": "Air-suspension compressor state.",
+    "enum": "On,Off"
+  },
+  {
+    "field": "AirSuspensionMode",
+    "category": "Suspension",
+    "type": "string",
+    "equiv": "vehicle_state.air_suspension_mode",
+    "desc": "Active air-suspension mode.",
+    "enum": "Standard,Comfort,Sport,OffRoad,Entry"
+  }
+]

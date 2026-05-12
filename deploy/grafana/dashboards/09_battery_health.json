@@ -1,0 +1,1005 @@
+{
+  "uid": "tesla-battery-health",
+  "title": "Tesla — Battery Health",
+  "tags": [
+    "tesla",
+    "battery",
+    "health"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "vin",
+        "label": "VIN",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "tesla_timescaledb"
+        },
+        "query": "SELECT DISTINCT vin AS __text, vin AS __value FROM telemetry ORDER BY 1",
+        "refresh": 2
+      },
+      {
+        "name": "dist_effective",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "tesla_timescaledb"
+        },
+        "query": "SELECT COALESCE(MAX(CASE WHEN distance_unit='DistanceUnitMiles' THEN 'imperial' ELSE 'metric' END),'imperial') FROM vehicle_prefs_pivot WHERE vin='$vin'",
+        "refresh": 2,
+        "hide": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 9990,
+      "panels": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "left",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": false
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "f": {
+                      "color": "red",
+                      "index": 0,
+                      "text": "❌ No"
+                    },
+                    "t": {
+                      "color": "green",
+                      "index": 1,
+                      "text": "✅ Yes"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 24,
+            "x": 0,
+            "y": 1
+          },
+          "id": 9991,
+          "options": {
+            "cellHeight": "sm",
+            "footer": {
+              "countRows": false,
+              "enablePagination": false,
+              "fields": "",
+              "reducer": [],
+              "show": false
+            },
+            "showHeader": true,
+            "sortBy": []
+          },
+          "pluginVersion": "11.2.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "postgres",
+                "uid": "tesla_timescaledb"
+              },
+              "format": "table",
+              "rawSql": "SELECT model AS \"Model\", model_year AS \"Year\", motor_config AS \"Motor\", has_heat_pump AS \"Heat Pump\", has_air_suspension AS \"Air Suspension\" FROM detect_vehicle_from_vin('$vin')",
+              "refId": "A"
+            }
+          ],
+          "title": "Decoded VIN: $vin",
+          "type": "table",
+          "description": "Vehicle information decoded from the selected VIN using the detect_vehicle_from_vin() database function."
+        }
+      ],
+      "title": "🚗 Vehicle Info",
+      "type": "row"
+    },
+    {
+      "id": null,
+      "type": "row",
+      "title": "🔋 Battery Health Overview",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "collapsed": false
+    },
+    {
+      "id": null,
+      "type": "stat",
+      "title": "Overall Status",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 6
+      },
+      "description": "Combined battery health status. CRITICAL = immediate service.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "unit": ""
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^overall_status$/",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT overall_status FROM battery_health_summary WHERE vin = '$vin'",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "stat",
+      "title": "Capacity Degradation",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 4,
+        "y": 6
+      },
+      "description": "% loss of derived full-pack energy since first recorded value.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "unit": ""
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "capacity_degradation_pct",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT capacity_degradation_pct FROM battery_health_summary WHERE vin = '$vin'",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "stat",
+      "title": "Range Degradation",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 9,
+        "y": 6
+      },
+      "description": "% loss of ideal range since first recorded value.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "unit": ""
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "ideal_range_degradation_pct",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ideal_range_degradation_pct FROM battery_health_summary WHERE vin = '$vin'",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "stat",
+      "title": "Active Alerts",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 14,
+        "y": 6
+      },
+      "description": "Number of currently active battery-related alerts.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "unit": ""
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "active_alert_count",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT active_alert_count FROM battery_health_summary WHERE vin = '$vin'",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "stat",
+      "title": "Brick Delta",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 19,
+        "y": 6
+      },
+      "description": "Max brick voltage imbalance from yesterday (V). >0.5 V = significant.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "unit": ""
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "last_day_brick_delta_max",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT last_day_brick_delta_max FROM battery_health_summary WHERE vin = '$vin'",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "row",
+      "title": "📉 Capacity Fade",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "collapsed": false
+    },
+    {
+      "id": null,
+      "type": "timeseries",
+      "title": "Derived Capacity (kWh)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 11
+      },
+      "description": "Full-pack energy derived from EnergyRemaining / BatteryLevel. Taken during rest hours for stability.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "kwatt"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts AS time, derived_capacity_kwh AS \"Derived capacity (kWh)\", capacity_30d_avg AS \"30-day avg\", capacity_90d_avg AS \"90-day avg\" FROM battery_health_diagnostics WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "timeseries",
+      "title": "Degradation %",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 11
+      },
+      "description": "Degradation since baseline. Industry-standard end-of-life = 20 % (Tesla warranty = 30 % at 8 years).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts AS time, capacity_degradation_pct AS \"Capacity %\", ideal_range_degradation_pct AS \"Ideal range %\", rated_range_degradation_pct AS \"Rated range %\" FROM battery_health_diagnostics WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "row",
+      "title": "⚡ Brick Imbalance & Range",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "collapsed": false
+    },
+    {
+      "id": null,
+      "type": "timeseries",
+      "title": "Brick Voltage Delta",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "description": "Difference between highest and lowest brick voltages. Growing delta indicates cell imbalance.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.3
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          },
+          "unit": "volt"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts AS time, brick_delta_max AS \"Max delta (V)\", brick_delta_30d_avg AS \"30-day avg\", brick_delta_90d_avg AS \"90-day avg\" FROM battery_health_diagnostics WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "timeseries",
+      "title": "Range at Rest",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "description": "Range estimates from the last rest hour of each day. Compatible with imperial/metric unit prefs.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "lengthmi"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts AS time, CASE WHEN '$dist_effective' = 'imperial' THEN ideal_range_rest ELSE ideal_range_rest * 1.60934 END AS \"Ideal range\", CASE WHEN '$dist_effective' = 'imperial' THEN rated_range_rest ELSE rated_range_rest * 1.60934 END AS \"Rated range\" FROM battery_health_diagnostics WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "row",
+      "title": "🚨 Alerts & Rest History",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "collapsed": false
+    },
+    {
+      "id": null,
+      "type": "table",
+      "title": "Active Battery Alerts",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 29
+      },
+      "description": "Currently active battery-related alerts from the vehicle_alerts stream.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "time",
+            "desc": true
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT alert_code AS \"Alert\", severity AS \"Severity\", description AS \"Description\", started_at AS \"Started\" FROM battery_alerts WHERE vin = '$vin' AND ended_at IS NULL ORDER BY CASE severity WHEN 'CRITICAL' THEN 1 WHEN 'URGENT' THEN 2 WHEN 'WARNING' THEN 3 ELSE 4 END, started_at DESC",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "table",
+      "title": "Rest Capacity History",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 29
+      },
+      "description": "High-quality capacity readings captured after 4+ hours of thermal rest.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "time",
+            "desc": true
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts AS \"Rest end\", block_hours AS \"Rest hours\", derived_capacity_kwh AS \"Derived capacity (kWh)\", battery_level AS \"SOC %\", ideal_range AS \"Ideal range (mi)\" FROM battery_rest_capacity WHERE vin = '$vin' ORDER BY ts DESC LIMIT 50",
+          "format": "table"
+        }
+      ]
+    }
+  ],
+  "annotations": {}
+}

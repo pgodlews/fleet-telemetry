@@ -1,0 +1,861 @@
+{
+  "uid": "tesla-alerts",
+  "title": "Tesla — Alert Parser & History",
+  "tags": [
+    "tesla",
+    "alerts",
+    "service",
+    "diagnostics"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "vin",
+        "label": "VIN",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "tesla_timescaledb"
+        },
+        "query": "SELECT DISTINCT vin AS __text, vin AS __value FROM telemetry ORDER BY 1",
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 9990,
+      "panels": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "left",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": false
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "f": {
+                      "color": "red",
+                      "index": 0,
+                      "text": "❌ No"
+                    },
+                    "t": {
+                      "color": "green",
+                      "index": 1,
+                      "text": "✅ Yes"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 24,
+            "x": 0,
+            "y": 1
+          },
+          "id": 9991,
+          "options": {
+            "cellHeight": "sm",
+            "footer": {
+              "countRows": false,
+              "enablePagination": false,
+              "fields": "",
+              "reducer": [],
+              "show": false
+            },
+            "showHeader": true,
+            "sortBy": []
+          },
+          "pluginVersion": "11.2.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "postgres",
+                "uid": "tesla_timescaledb"
+              },
+              "format": "table",
+              "rawSql": "SELECT model AS \"Model\", model_year AS \"Year\", motor_config AS \"Motor\", has_heat_pump AS \"Heat Pump\", has_air_suspension AS \"Air Suspension\" FROM detect_vehicle_from_vin('$vin')",
+              "refId": "A"
+            }
+          ],
+          "title": "Decoded VIN: $vin",
+          "type": "table",
+          "description": "Vehicle information decoded from the selected VIN using the detect_vehicle_from_vin() database function."
+        }
+      ],
+      "title": "🚗 Vehicle Info",
+      "type": "row"
+    },
+    {
+      "id": null,
+      "type": "row",
+      "title": "🚨 Active Alert Status",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "collapsed": false
+    },
+    {
+      "id": null,
+      "type": "stat",
+      "title": "Critical Alerts",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 6
+      },
+      "description": "Number of currently active CRITICAL alerts (immediate action required).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": ""
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "critical_active",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT critical_active FROM alert_critical_active WHERE vin = '$vin'",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "stat",
+      "title": "Urgent Alerts",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 6
+      },
+      "description": "Number of currently active URGENT alerts (schedule service soon).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          },
+          "unit": ""
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "urgent_active",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT urgent_active FROM alert_critical_active WHERE vin = '$vin'",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "stat",
+      "title": "Warning Alerts",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 6
+      },
+      "description": "Number of currently active WARNING alerts (monitor).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              }
+            ]
+          },
+          "unit": ""
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "warning_active",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT warning_active FROM alert_critical_active WHERE vin = '$vin'",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "stat",
+      "title": "Total Active",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 6
+      },
+      "description": "Total active alerts of any severity.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": ""
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT total_active FROM alert_critical_active WHERE vin = '$vin'",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "stat",
+      "title": "Latest Critical",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 6
+      },
+      "description": "Most recent critical alert codes. NONE = all clear.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": ""
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT COALESCE(critical_codes, 'NONE') FROM alert_critical_active WHERE vin = '$vin'",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "row",
+      "title": "📊 Alert Frequency Timeline",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "collapsed": false
+    },
+    {
+      "id": null,
+      "type": "timeseries",
+      "title": "Daily Alerts by Subsystem",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 0,
+        "y": 11
+      },
+      "description": "Stacked daily alert counts by subsystem. Spikes indicate emerging issues.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": ""
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT bucket AS time, SUM(alert_count) FILTER (WHERE subsystem='BMS') AS \"BMS\", SUM(alert_count) FILTER (WHERE subsystem='Drive Inverter') AS \"Drive Inverter\", SUM(alert_count) FILTER (WHERE subsystem='User Interface') AS \"UI\", SUM(alert_count) FILTER (WHERE subsystem='Power Conversion') AS \"PCS\", SUM(alert_count) FILTER (WHERE subsystem='Chassis') AS \"Chassis\", SUM(alert_count) FILTER (WHERE subsystem='Climate Control') AS \"Climate\", SUM(alert_count) FILTER (WHERE subsystem='Charge Port') AS \"Charge Port\" FROM alert_frequency_1d WHERE vin = '$vin' AND $__timeFilter(bucket) GROUP BY bucket ORDER BY bucket",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "timeseries",
+      "title": "Active Alerts Trend",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 11
+      },
+      "description": "Number of alerts that are still active (not ended) each day.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": ""
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT bucket AS time, SUM(active_count) AS \"Active alerts\" FROM alert_frequency_1d WHERE vin = '$vin' AND $__timeFilter(bucket) GROUP BY bucket ORDER BY bucket",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "row",
+      "title": "📋 Alert History & Details",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "collapsed": false
+    },
+    {
+      "id": null,
+      "type": "table",
+      "title": "Parsed Alert History",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 0,
+        "y": 20
+      },
+      "description": "Full parsed alerts with telemetry context at time of alert.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "time",
+            "desc": true
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts AS \"Alert time\", alert_code AS \"Code\", severity AS \"Severity\", subsystem AS \"Subsystem\", description AS \"Description\", is_active AS \"Active\", COALESCE(vehicle_speed_at_alert::text, '-') AS \"Speed\", COALESCE(charge_state_at_alert, '-') AS \"Charge\", COALESCE(battery_level_at_alert::text, '-') AS \"SOC %\" FROM parsed_alerts WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts DESC LIMIT 200",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "table",
+      "title": "Alert History Summary",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 14,
+        "y": 20
+      },
+      "description": "One row per alert code showing lifetime stats for this VIN.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "time",
+            "desc": true
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT alert_code AS \"Code\", severity AS \"Severity\", subsystem AS \"Subsystem\", first_seen AS \"First seen\", last_seen AS \"Last seen\", recurrence_count AS \"Count\", active_count AS \"Active now\", LEFT(description, 80) AS \"Description\" FROM alert_history_summary WHERE vin = '$vin' ORDER BY CASE severity WHEN 'CRITICAL' THEN 1 WHEN 'URGENT' THEN 2 WHEN 'WARNING' THEN 3 ELSE 4 END, recurrence_count DESC",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "row",
+      "title": "🔍 Subsystem Health Trends",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "collapsed": false
+    },
+    {
+      "id": null,
+      "type": "table",
+      "title": "Subsystem Alert Rates",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "description": "Rolling alert rates per subsystem. ALERT_SPIKE = 3× normal rate. PERSISTENT_ISSUES = 3+ active in 7 days.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "time",
+            "desc": true
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts AS \"Date\", subsystem AS \"Subsystem\", daily_alerts AS \"Daily count\", ROUND(alert_rate_7d::numeric, 2) AS \"7-day rate\", ROUND(alert_rate_30d::numeric, 2) AS \"30-day rate\", trend_pct AS \"Trend %\", subsystem_status AS \"Status\" FROM alert_subsystem_trends WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts DESC, subsystem LIMIT 100",
+          "format": "table"
+        }
+      ]
+    }
+  ],
+  "annotations": {}
+}

@@ -1,0 +1,24 @@
+*.out
+coverage.html
+.idea
+.DS_Store
+config_app.json
+certs
+vendor/
+config-local.json
+temp
+test/integration/test-certs/
+
+# Deployment secrets
+.env
+deploy/fleet-telemetry/config.json
+deploy/tesla-keys.env
+
+# Local working docs / IDE configs
+PRE_GITHUB.MD
+.claude/
+deploy/DEPLOYMENT_*.md
+deploy/simulator-linux-amd64
+
+simulator
+tools/simulator/simulator

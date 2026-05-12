@@ -1,0 +1,1472 @@
+{
+  "uid": "tesla-summary",
+  "title": "Tesla — Summary",
+  "tags": [
+    "tesla",
+    "summary"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "vin",
+        "label": "VIN",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "tesla_timescaledb"
+        },
+        "query": "SELECT DISTINCT vin AS __text, vin AS __value FROM telemetry ORDER BY 1",
+        "refresh": 2
+      },
+      {
+        "name": "units_override",
+        "label": "Units",
+        "type": "custom",
+        "query": "auto,metric,imperial",
+        "current": {
+          "text": "auto",
+          "value": "auto"
+        }
+      },
+      {
+        "name": "distance_unit",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "postgres",
+          "uid": "tesla_timescaledb"
+        },
+        "query": "SELECT COALESCE(distance_unit, 'DistanceUnitKm') FROM vehicle_prefs_pivot WHERE vin = '$vin'",
+        "refresh": 2
+      },
+      {
+        "name": "units_effective",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "postgres",
+          "uid": "tesla_timescaledb"
+        },
+        "query": "SELECT CASE WHEN '$units_override'='metric' THEN 'metric' WHEN '$units_override'='imperial' THEN 'imperial' WHEN '$distance_unit'='DistanceUnitMiles' THEN 'imperial' ELSE 'metric' END",
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 9990,
+      "panels": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "left",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": false
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "f": {
+                      "color": "red",
+                      "index": 0,
+                      "text": "❌ No"
+                    },
+                    "t": {
+                      "color": "green",
+                      "index": 1,
+                      "text": "✅ Yes"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 24,
+            "x": 0,
+            "y": 1
+          },
+          "id": 9991,
+          "options": {
+            "cellHeight": "sm",
+            "footer": {
+              "countRows": false,
+              "enablePagination": false,
+              "fields": "",
+              "reducer": [],
+              "show": false
+            },
+            "showHeader": true,
+            "sortBy": []
+          },
+          "pluginVersion": "11.2.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "postgres",
+                "uid": "tesla_timescaledb"
+              },
+              "format": "table",
+              "rawSql": "SELECT model AS \"Model\", model_year AS \"Year\", motor_config AS \"Motor\", has_heat_pump AS \"Heat Pump\", has_air_suspension AS \"Air Suspension\" FROM detect_vehicle_from_vin('$vin')",
+              "refId": "A"
+            }
+          ],
+          "title": "Decoded VIN: $vin",
+          "type": "table",
+          "description": "Vehicle information decoded from the selected VIN using the detect_vehicle_from_vin() database function."
+        }
+      ],
+      "title": "🚗 Vehicle Info",
+      "type": "row"
+    },
+    {
+      "id": 1,
+      "type": "gauge",
+      "title": "State of Charge",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 6,
+        "x": 0,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 20
+              },
+              {
+                "color": "yellow",
+                "value": 40
+              },
+              {
+                "color": "green",
+                "value": 60
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT num_value AS soc FROM telemetry_latest WHERE vin = '$vin' AND field = 'BatteryLevel'"
+        }
+      ],
+      "description": "Latest battery state of charge for the selected VIN."
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Range",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthkm",
+          "decimals": 0
+        }
+      },
+      "options": {
+        "graphMode": "area",
+        "colorMode": "value",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT CASE WHEN '$units_effective'='imperial' THEN num_value ELSE num_value*1.60934 END AS range FROM telemetry_latest WHERE vin='$vin' AND field='RatedRange'"
+        }
+      ],
+      "description": "Latest estimated rated range, converted to the effective unit preference."
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Charge State",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 5
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^state$/",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT str_value AS state FROM telemetry_latest WHERE vin='$vin' AND field='ChargeState'"
+        }
+      ],
+      "description": "Current charging status reported by the vehicle (e.g. Charging, Complete)."
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Gear",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 5
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^gear$/",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT str_value AS gear FROM telemetry_latest WHERE vin='$vin' AND field='Gear'"
+        }
+      ],
+      "description": "Current transmission gear selector position."
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Speed",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "velocitykmh",
+          "decimals": 0
+        }
+      },
+      "options": {
+        "graphMode": "area",
+        "colorMode": "value",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT bucket AS time, CASE WHEN '$units_effective'='imperial' THEN avg_v ELSE avg_v*1.60934 END AS speed FROM telemetry_1m WHERE field='VehicleSpeed' AND vin='$vin' AND $__timeFilter(bucket) ORDER BY 1"
+        }
+      ],
+      "description": "Latest vehicle speed from the 1-minute aggregated telemetry table."
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Power",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatt",
+          "decimals": 1
+        }
+      },
+      "options": {
+        "graphMode": "area",
+        "colorMode": "value",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  COALESCE(v.num_value * i.num_value / 1000, 0) AS power_kw\nFROM\n  (SELECT num_value FROM telemetry_latest WHERE vin='$vin' AND field='PackVoltage') v,\n  (SELECT num_value FROM telemetry_latest WHERE vin='$vin' AND field='PackCurrent') i"
+        }
+      ],
+      "description": "Latest battery power calculated from pack voltage × pack current."
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Outside Temp",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1
+        }
+      },
+      "options": {
+        "graphMode": "area",
+        "colorMode": "value",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT bucket AS time, to_temp(avg_v, '$units_effective') AS temp FROM telemetry_1m WHERE field='OutsideTemp' AND vin='$vin' AND $__timeFilter(bucket) ORDER BY 1"
+        }
+      ],
+      "description": "Latest outside temperature, converted to the effective unit preference."
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Speed & Power",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 18,
+        "x": 6,
+        "y": 14
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "power_kw"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "kwatt"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "speed_kmh"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Speed (km/h)"
+              },
+              {
+                "id": "unit",
+                "value": "velocitykmh"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "power_kw"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Power (kW)"
+              },
+              {
+                "id": "unit",
+                "value": "kwatt"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "left"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT ts AS time, num_value * 1.60934 AS speed_kmh\nFROM telemetry\nWHERE field='VehicleSpeed' AND vin='$vin' AND $__timeFilter(ts)\nORDER BY ts"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT\n  v.bucket AS time,\n  v.avg_v * i.avg_v / 1000 AS power_kw\nFROM telemetry_1m v\nJOIN telemetry_1m i ON v.bucket = i.bucket AND v.vin = i.vin\nWHERE v.field='PackVoltage' AND i.field='PackCurrent'\n  AND v.vin='$vin' AND $__timeFilter(v.bucket)\nORDER BY 1"
+        }
+      ],
+      "description": "Time-series overlay of vehicle speed and battery power."
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "TPMS (bar)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 6,
+        "x": 0,
+        "y": 14
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pressurebar",
+          "decimals": 2
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  MAX(CASE WHEN field='TpmsPressureFl' THEN num_value END) AS \"FL\",\n  MAX(CASE WHEN field='TpmsPressureFr' THEN num_value END) AS \"FR\",\n  MAX(CASE WHEN field='TpmsPressureRl' THEN num_value END) AS \"RL\",\n  MAX(CASE WHEN field='TpmsPressureRr' THEN num_value END) AS \"RR\"\nFROM telemetry_latest\nWHERE vin='$vin' AND field IN ('TpmsPressureFl','TpmsPressureFr','TpmsPressureRl','TpmsPressureRr')"
+        }
+      ],
+      "description": "Current tyre pressures for all four wheels."
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Battery pack temperatures",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 23
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT bucket AS time, avg_v AS min_c FROM telemetry_1m WHERE field='ModuleTempMin' AND vin='$vin' AND $__timeFilter(bucket) ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT bucket AS time, avg_v AS max_c FROM telemetry_1m WHERE field='ModuleTempMax' AND vin='$vin' AND $__timeFilter(bucket) ORDER BY 1"
+        }
+      ],
+      "description": "Minimum and maximum battery module temperatures over time."
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Cabin climate",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 23
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT bucket AS time, avg_v AS inside FROM telemetry_1m WHERE field='InsideTemp' AND vin='$vin' AND $__timeFilter(bucket) ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT bucket AS time, avg_v AS outside FROM telemetry_1m WHERE field='OutsideTemp' AND vin='$vin' AND $__timeFilter(bucket) ORDER BY 1"
+        },
+        {
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT bucket AS time, avg_v AS setpoint_l FROM telemetry_1m WHERE field='HvacLeftTemperatureRequest' AND vin='$vin' AND $__timeFilter(bucket) ORDER BY 1"
+        }
+      ],
+      "description": "Interior, exterior, and HVAC set-point temperatures over time."
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Doors / windows",
+      "description": "Composite proto fields are flattened by the dispatcher: DoorState_DriverFront, WindowState_DriverFront, etc.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  replace(field, 'DoorState_', '') AS door,\n  CASE str_value WHEN 'true' THEN 'Open' ELSE 'Closed' END AS state\nFROM telemetry_latest\nWHERE vin='$vin'\n  AND (field LIKE 'DoorState_%' OR field IN ('FdWindow','FpWindow','RdWindow','RpWindow'))\nORDER BY field"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Security & state",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT field, str_value FROM telemetry_latest WHERE vin='$vin' AND field IN ('Locked','SentryMode','ValetModeEnabled','GuestModeEnabled','PinToDriveEnabled','ServiceMode','LightsHazardsActive','BrakePedal','DriverSeatBelt','DriverSeatOccupied')"
+        }
+      ],
+      "description": "Snapshot of security and occupancy-related boolean fields."
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "Synced from car",
+      "description": "User-preference fields the car streams. Drive the dashboard's units.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT field, value FROM vehicle_prefs WHERE vin='$vin'"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "id": 15,
+      "title": "🚗 Vehicle Identity",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 6,
+        "x": 0,
+        "y": 45
+      },
+      "id": 16,
+      "type": "stat",
+      "title": "Firmware",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/str_value/",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, str_value FROM telemetry_latest WHERE vin='$vin' AND field='Version'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "description": "Current firmware version installed on the vehicle."
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 6,
+        "x": 6,
+        "y": 45
+      },
+      "id": 17,
+      "type": "stat",
+      "title": "Colour",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/str_value/",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, str_value FROM telemetry_latest WHERE vin='$vin' AND field='ExteriorColor'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "description": "Factory exterior colour of the vehicle."
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 6,
+        "x": 12,
+        "y": 45
+      },
+      "id": 18,
+      "type": "stat",
+      "title": "Wheels",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/str_value/",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, str_value FROM telemetry_latest WHERE vin='$vin' AND field='WheelType'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "description": "Factory wheel type fitted to the vehicle."
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 6,
+        "x": 18,
+        "y": 45
+      },
+      "id": 19,
+      "type": "stat",
+      "title": "Trim",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/str_value/",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, str_value FROM telemetry_latest WHERE vin='$vin' AND field='Trim'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "description": "Vehicle trim level as reported by the configuration data."
+    },
+    {
+      "id": 25,
+      "type": "row",
+      "title": "🔄 Software Update",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      },
+      "collapsed": false
+    },
+    {
+      "id": 26,
+      "type": "stat",
+      "title": "Current Version",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 49
+      },
+      "description": "Currently installed firmware version.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, str_value as value FROM telemetry_latest WHERE vin='$vin' AND field='Version'",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "type": "gauge",
+      "title": "Download Progress",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 49
+      },
+      "description": "Software update download progress.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 30
+              },
+              {
+                "color": "green",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto",
+        "text": {}
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, num_value as value FROM telemetry_latest WHERE vin='$vin' AND field='SoftwareUpdateDownloadPercentComplete' AND num_value > 0",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "type": "gauge",
+      "title": "Install Progress",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 49
+      },
+      "description": "Software update installation progress.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 30
+              },
+              {
+                "color": "green",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto",
+        "text": {}
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, num_value as value FROM telemetry_latest WHERE vin='$vin' AND field='SoftwareUpdateInstallationPercentComplete' AND num_value > 0",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "type": "stat",
+      "title": "Scheduled Start",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 49
+      },
+      "description": "Scheduled software update installation start time.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          },
+          "unit": "dateTimeAsIso"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, to_timestamp(num_value) as value FROM telemetry_latest WHERE vin='$vin' AND field='SoftwareUpdateScheduledStartTime' AND num_value > 0",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      },
+      "id": 20,
+      "title": "🎵 Now Playing",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 6,
+        "x": 0,
+        "y": 49
+      },
+      "id": 21,
+      "type": "stat",
+      "title": "Artist",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, COALESCE(str_value, num_value::text) as value FROM telemetry_latest WHERE vin='$vin' AND field='MediaNowPlayingArtist'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "description": "Currently playing media artist name."
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 6,
+        "x": 6,
+        "y": 49
+      },
+      "id": 22,
+      "type": "stat",
+      "title": "Title",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, COALESCE(str_value, num_value::text) as value FROM telemetry_latest WHERE vin='$vin' AND field='MediaNowPlayingTitle'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "description": "Currently playing media track title."
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 6,
+        "x": 12,
+        "y": 49
+      },
+      "id": 23,
+      "type": "stat",
+      "title": "Station",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, COALESCE(str_value, num_value::text) as value FROM telemetry_latest WHERE vin='$vin' AND field='MediaNowPlayingStation'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "description": "Currently playing radio or streaming station name."
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 6,
+        "x": 18,
+        "y": 49
+      },
+      "id": 24,
+      "type": "stat",
+      "title": "Volume",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, COALESCE(str_value, num_value::text) as value FROM telemetry_latest WHERE vin='$vin' AND field='MediaAudioVolume'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "description": "Current audio volume level."
+    }
+  ]
+}

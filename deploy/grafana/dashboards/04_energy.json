@@ -1,0 +1,763 @@
+{
+  "uid": "tesla-energy",
+  "title": "Tesla — Energy",
+  "tags": [
+    "tesla",
+    "energy"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "1m",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "vin",
+        "label": "VIN",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "tesla_timescaledb"
+        },
+        "query": "SELECT DISTINCT vin AS __text, vin AS __value FROM telemetry ORDER BY 1",
+        "refresh": 2
+      },
+      {
+        "name": "dist_unit",
+        "label": "Distance",
+        "type": "custom",
+        "query": "auto,metric,imperial",
+        "current": {
+          "text": "auto",
+          "value": "auto"
+        }
+      },
+      {
+        "name": "dist_effective",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "postgres",
+          "uid": "tesla_timescaledb"
+        },
+        "query": "SELECT CASE WHEN '$dist_unit'='metric' THEN 'metric' WHEN '$dist_unit'='imperial' THEN 'imperial' WHEN (SELECT COALESCE(distance_unit, 'DistanceUnitKm') FROM vehicle_prefs_pivot WHERE vin = '$vin')='DistanceUnitMiles' THEN 'imperial' ELSE 'metric' END",
+        "refresh": 2
+      },
+      {
+        "name": "temp_unit",
+        "label": "Temperature",
+        "type": "custom",
+        "query": "auto,celsius,fahrenheit",
+        "current": {
+          "text": "auto",
+          "value": "auto"
+        }
+      },
+      {
+        "name": "temp_effective",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "postgres",
+          "uid": "tesla_timescaledb"
+        },
+        "query": "SELECT CASE WHEN '$temp_unit'='fahrenheit' THEN 'imperial' WHEN '$temp_unit'='celsius' THEN 'metric' WHEN (SELECT COALESCE(temp_unit, 'TemperatureUnitC') FROM vehicle_prefs_pivot WHERE vin = '$vin')='TemperatureUnitFahrenheit' THEN 'imperial' ELSE 'metric' END",
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 9990,
+      "panels": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "left",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": false
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "f": {
+                      "color": "red",
+                      "index": 0,
+                      "text": "❌ No"
+                    },
+                    "t": {
+                      "color": "green",
+                      "index": 1,
+                      "text": "✅ Yes"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 24,
+            "x": 0,
+            "y": 1
+          },
+          "id": 9991,
+          "options": {
+            "cellHeight": "sm",
+            "footer": {
+              "countRows": false,
+              "enablePagination": false,
+              "fields": "",
+              "reducer": [],
+              "show": false
+            },
+            "showHeader": true,
+            "sortBy": []
+          },
+          "pluginVersion": "11.2.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "postgres",
+                "uid": "tesla_timescaledb"
+              },
+              "format": "table",
+              "rawSql": "SELECT model AS \"Model\", model_year AS \"Year\", motor_config AS \"Motor\", has_heat_pump AS \"Heat Pump\", has_air_suspension AS \"Air Suspension\" FROM detect_vehicle_from_vin('$vin')",
+              "refId": "A"
+            }
+          ],
+          "title": "Decoded VIN: $vin",
+          "type": "table",
+          "description": "Vehicle information decoded from the selected VIN using the detect_vehicle_from_vin() database function."
+        }
+      ],
+      "title": "🚗 Vehicle Info",
+      "type": "row"
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "AC Energy In (30d)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 0,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatth",
+          "decimals": 1
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(GREATEST(0, delta)), 0) AS kwh\nFROM (\n  SELECT num_value - LAG(num_value) OVER (ORDER BY ts) AS delta\n  FROM telemetry\n  WHERE field='ACChargingEnergyIn' AND vin='$vin' AND ts > NOW() - INTERVAL '30 days'\n) d"
+        }
+      ],
+      "description": "Total AC charging energy added over the last 30 days."
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "DC Energy In (30d)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 5,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatth",
+          "decimals": 1
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(GREATEST(0, delta)), 0) AS kwh\nFROM (\n  SELECT num_value - LAG(num_value) OVER (ORDER BY ts) AS delta\n  FROM telemetry\n  WHERE field='DCChargingEnergyIn' AND vin='$vin' AND ts > NOW() - INTERVAL '30 days'\n) d"
+        }
+      ],
+      "description": "Total DC fast-charging energy added over the last 30 days."
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Regen (derived, 30d)",
+      "description": "Regen kWh = ∫ max(0, -Power) dt. No dedicated regen field is streamed.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 10,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatth",
+          "decimals": 1
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(GREATEST(0, -power_kw)) * 30.0/3600.0, 0) AS kwh\nFROM (\n  SELECT time_bucket('30s', v.ts) AS b,\n    AVG(v.num_value) * AVG(i.num_value) / 1000 AS power_kw\n  FROM telemetry v\n  JOIN telemetry i ON time_bucket('30s', v.ts) = time_bucket('30s', i.ts) AND v.vin = i.vin\n  WHERE v.field='PackVoltage' AND i.field='PackCurrent'\n    AND v.vin='$vin' AND v.ts > NOW() - INTERVAL '30 days'\n  GROUP BY 1\n) p"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Drive Energy (derived, 30d)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 15,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatth",
+          "decimals": 1
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(SUM(GREATEST(0, power_kw)) * 30.0/3600.0, 0) AS kwh\nFROM (\n  SELECT time_bucket('30s', v.ts) AS b,\n    AVG(v.num_value) * AVG(i.num_value) / 1000 AS power_kw\n  FROM telemetry v\n  JOIN telemetry i ON time_bucket('30s', v.ts) = time_bucket('30s', i.ts) AND v.vin = i.vin\n  WHERE v.field='PackVoltage' AND i.field='PackCurrent'\n    AND v.vin='$vin' AND v.ts > NOW() - INTERVAL '30 days'\n  GROUP BY 1\n) p"
+        }
+      ],
+      "description": "Estimated drive energy consumed over the last 30 days, derived from pack power."
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Distance (30d)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 19,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ROUND((CASE WHEN '$dist_effective'='imperial' THEN COALESCE(MAX(num_value) - MIN(num_value), 0) ELSE COALESCE(MAX(num_value) - MIN(num_value), 0)*1.60934 END)::numeric, 1) AS dist FROM telemetry WHERE field='Odometer' AND vin='$vin' AND ts > NOW() - INTERVAL '30 days'"
+        }
+      ],
+      "description": "Total distance driven over the last 30 days, derived from odometer deltas."
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Power",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatt"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT\n  v.bucket AS time,\n  v.avg_v * i.avg_v / 1000 AS power_kw\nFROM telemetry_1m v\nJOIN telemetry_1m i ON v.bucket = i.bucket AND v.vin = i.vin\nWHERE v.field='PackVoltage' AND i.field='PackCurrent'\n  AND v.vin='$vin' AND $__timeFilter(v.bucket)\nORDER BY 1"
+        }
+      ],
+      "description": "Battery power over time, calculated from pack voltage × pack current."
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "State of Charge",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT bucket AS time, last_v AS soc FROM telemetry_1m WHERE field='BatteryLevel' AND vin='$vin' AND $__timeFilter(bucket) ORDER BY 1"
+        }
+      ],
+      "description": "Battery state of charge trend over the selected time range."
+    },
+    {
+      "id": 8,
+      "type": "xychart",
+      "title": "Charge Curve (Power vs SoC, last 7d)",
+      "description": "Pairs Power and BatteryLevel within each charge session — typical fast-charge taper.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 19
+      },
+      "fieldConfig": {
+        "defaults": {}
+      },
+      "options": {
+        "mapping": "auto",
+        "series": [
+          {
+            "x": "soc",
+            "y": "power_kw"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH soc AS (\n  SELECT time_bucket('1 minute', ts) AS m, AVG(num_value) AS soc\n  FROM telemetry WHERE vin='$vin' AND field='BatteryLevel' AND ts > NOW() - INTERVAL '7 days'\n  GROUP BY 1\n),\npwr AS (\n  SELECT time_bucket('1 minute', v.ts) AS m, AVG(v.num_value)*AVG(i.num_value)/1000 AS kw\n  FROM telemetry v\n  JOIN telemetry i ON time_bucket('1 minute', v.ts)=time_bucket('1 minute',i.ts) AND v.vin=i.vin\n  WHERE v.field='PackVoltage' AND i.field='PackCurrent'\n    AND v.vin='$vin' AND v.ts > NOW() - INTERVAL '7 days'\n  GROUP BY 1\n  HAVING AVG(v.num_value)*AVG(i.num_value)/1000 < -1\n)\nSELECT s.soc, ABS(p.kw) AS power_kw FROM soc s JOIN pwr p ON s.m=p.m ORDER BY s.soc"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "barchart",
+      "title": "Drive efficiency by speed bucket (Wh/km, 30d)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 19
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watt",
+          "decimals": 0
+        }
+      },
+      "options": {
+        "xField": "bucket",
+        "orientation": "vertical"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH p AS (\n  SELECT time_bucket('1 minute', v.ts) AS m,\n    AVG(v.num_value)*AVG(i.num_value)/1000 AS power_kw\n  FROM telemetry v\n  JOIN telemetry i ON time_bucket('1 minute',v.ts)=time_bucket('1 minute',i.ts) AND v.vin=i.vin\n  WHERE v.field='PackVoltage' AND i.field='PackCurrent'\n    AND v.vin='$vin' AND v.ts > NOW() - INTERVAL '30 days'\n  GROUP BY 1\n),\ns AS (\n  SELECT time_bucket('1 minute', ts) AS m, AVG(num_value) AS mph\n  FROM telemetry WHERE vin='$vin' AND field='VehicleSpeed'\n    AND ts > NOW() - INTERVAL '30 days' GROUP BY 1\n)\nSELECT\n  width_bucket(s.mph, 0, 80, 8)*10 AS speed_mph_bucket,\n  AVG(GREATEST(0,p.power_kw)/NULLIF(s.mph*1.609,0)*1000) AS wh_per_km\nFROM p JOIN s ON p.m=s.m WHERE s.mph > 5\nGROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "description": "Average energy consumption grouped by 10 mph speed buckets over the last 30 days."
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "Charge Sessions",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 29
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT session_id, started, ended, EXTRACT(EPOCH FROM duration)/60 AS minutes FROM charge_sessions WHERE vin='$vin' AND started > NOW() - INTERVAL '30 days' ORDER BY started DESC"
+        }
+      ],
+      "description": "List of recent charge sessions with start, end, and duration."
+    },
+    {
+      "id": 11,
+      "type": "heatmap",
+      "title": "Driving activity (14d × 24h, avg drive power)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 29
+      },
+      "options": {
+        "calculate": false,
+        "color": {
+          "mode": "scheme",
+          "scheme": "Reds",
+          "steps": 64
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('1 hour', v.ts) AS time,\n  GREATEST(0, AVG(v.num_value)*AVG(i.num_value)/1000) AS power_kw\nFROM telemetry v\nJOIN telemetry i ON time_bucket('30s',v.ts)=time_bucket('30s',i.ts) AND v.vin=i.vin\nWHERE v.field='PackVoltage' AND i.field='PackCurrent'\n  AND v.vin='$vin' AND v.ts > NOW() - INTERVAL '14 days'\nGROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "description": "Heatmap of average drive power by hour of day over the last 14 days."
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Pack temperature spread (min / max)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 39
+      },
+      "fieldConfig": {
+        "defaults": {}
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT bucket AS time, to_temp(avg_v, '$temp_effective') AS min_c FROM telemetry_1m WHERE field='ModuleTempMin' AND vin='$vin' AND $__timeFilter(bucket) ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT bucket AS time, to_temp(avg_v, '$temp_effective') AS max_c FROM telemetry_1m WHERE field='ModuleTempMax' AND vin='$vin' AND $__timeFilter(bucket) ORDER BY 1"
+        }
+      ],
+      "description": "Minimum and maximum battery module temperatures over time."
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Pack voltage / current",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 39
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "voltage"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "volt"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "current"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "amp"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT bucket AS time, avg_v AS voltage FROM telemetry_1m WHERE field='PackVoltage' AND vin='$vin' AND $__timeFilter(bucket) ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT bucket AS time, avg_v AS current FROM telemetry_1m WHERE field='PackCurrent' AND vin='$vin' AND $__timeFilter(bucket) ORDER BY 1"
+        }
+      ],
+      "description": "Battery pack voltage and current over the selected time range."
+    },
+    {
+      "id": 14,
+      "type": "row",
+      "title": "📊 Lifetime & Charge Rate",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      },
+      "collapsed": false
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "Lifetime Energy Used",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 49
+      },
+      "description": "Total lifetime energy consumed by the vehicle (kWh).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "kwatth"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, num_value as value FROM telemetry_latest WHERE vin='$vin' AND field='LifetimeEnergyUsed'",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Charge Rate",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 18,
+        "x": 6,
+        "y": 49
+      },
+      "description": "Miles of range added per hour while charging.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 3,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "velocity"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "min",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, CASE WHEN '$dist_effective'='imperial' THEN num_value ELSE num_value*1.60934 END as value FROM telemetry WHERE field='ChargeRateMilePerHour' AND vin='$vin' AND num_value IS NOT NULL AND $__timeFilter(ts) ORDER BY ts",
+          "format": "time_series"
+        }
+      ]
+    }
+  ]
+}

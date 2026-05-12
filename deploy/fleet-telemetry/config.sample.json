@@ -1,0 +1,27 @@
+{
+  "host": "0.0.0.0",
+  "port": 4443,
+  "status_port": 8080,
+  "log_level": "info",
+  "json_log_enable": true,
+  "namespace": "tesla",
+  "records": {
+    "V":            ["postgres"],
+    "alerts":       ["postgres"],
+    "errors":       ["postgres"],
+    "connectivity": ["postgres"]
+  },
+  "postgres": {
+    "conn_string": "postgres://postgres:<YOUR_POSTGRES_PASSWORD>@timescaledb:5432/tesla?sslmode=disable",
+    "max_conns": 16,
+    "min_conns": 2
+  },
+  "monitoring": {
+    "prometheus_metrics_port": 9090,
+    "prometheus_metrics_host": "0.0.0.0"
+  },
+  "tls": {
+    "server_cert": "/etc/fleet-telemetry/certs/server.crt",
+    "server_key":  "/etc/fleet-telemetry/certs/server.key"
+  }
+}

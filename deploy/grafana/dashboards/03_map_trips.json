@@ -1,0 +1,980 @@
+{
+  "uid": "tesla-map",
+  "title": "Tesla — Map & Trips",
+  "tags": [
+    "tesla",
+    "map"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "30s",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "vin",
+        "label": "VIN",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "tesla_timescaledb"
+        },
+        "query": "SELECT DISTINCT vin AS __text, vin AS __value FROM telemetry ORDER BY 1",
+        "refresh": 2,
+        "includeAll": false
+      },
+      {
+        "name": "dist_unit",
+        "label": "Distance",
+        "type": "custom",
+        "query": "auto,metric,imperial",
+        "current": {
+          "text": "auto",
+          "value": "auto"
+        }
+      },
+      {
+        "name": "dist_effective",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "postgres",
+          "uid": "tesla_timescaledb"
+        },
+        "query": "SELECT CASE WHEN '$dist_unit'='metric' THEN 'metric' WHEN '$dist_unit'='imperial' THEN 'imperial' WHEN (SELECT COALESCE(distance_unit, 'DistanceUnitKm') FROM vehicle_prefs_pivot WHERE vin = '$vin')='DistanceUnitMiles' THEN 'imperial' ELSE 'metric' END",
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 9990,
+      "panels": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "left",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": false
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "f": {
+                      "color": "red",
+                      "index": 0,
+                      "text": "❌ No"
+                    },
+                    "t": {
+                      "color": "green",
+                      "index": 1,
+                      "text": "✅ Yes"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 24,
+            "x": 0,
+            "y": 1
+          },
+          "id": 9991,
+          "options": {
+            "cellHeight": "sm",
+            "footer": {
+              "countRows": false,
+              "enablePagination": false,
+              "fields": "",
+              "reducer": [],
+              "show": false
+            },
+            "showHeader": true,
+            "sortBy": []
+          },
+          "pluginVersion": "11.2.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "postgres",
+                "uid": "tesla_timescaledb"
+              },
+              "format": "table",
+              "rawSql": "SELECT model AS \"Model\", model_year AS \"Year\", motor_config AS \"Motor\", has_heat_pump AS \"Heat Pump\", has_air_suspension AS \"Air Suspension\" FROM detect_vehicle_from_vin('$vin')",
+              "refId": "A"
+            }
+          ],
+          "title": "Decoded VIN: $vin",
+          "type": "table",
+          "description": "Vehicle information decoded from the selected VIN using the detect_vehicle_from_vin() database function."
+        }
+      ],
+      "title": "🚗 Vehicle Info",
+      "type": "row"
+    },
+    {
+      "id": 1,
+      "type": "geomap",
+      "title": "Route",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 20,
+        "w": 16,
+        "x": 0,
+        "y": 5
+      },
+      "options": {
+        "view": {
+          "id": "coords",
+          "lat": 51.505,
+          "lon": -0.09,
+          "zoom": 11
+        },
+        "controls": {
+          "showZoom": true,
+          "showAttribution": true,
+          "showScale": true,
+          "mouseWheelZoom": true
+        },
+        "basemap": {
+          "type": "carto",
+          "config": {
+            "theme": "dark"
+          }
+        },
+        "layers": [
+          {
+            "type": "route",
+            "name": "Track",
+            "config": {
+              "showLegend": false,
+              "size": {
+                "fixed": 3
+              },
+              "color": {
+                "fixed": "#e8332b"
+              },
+              "fillOpacity": 0.8,
+              "arrow": "forward"
+            },
+            "location": {
+              "mode": "coords",
+              "latitude": "latitude",
+              "longitude": "longitude"
+            },
+            "tooltip": true
+          }
+        ],
+        "tooltip": {
+          "mode": "details"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT ts AS time, ST_Y(geo_value::geometry) AS latitude, ST_X(geo_value::geometry) AS longitude FROM telemetry WHERE vin='$vin' AND field='Location' AND geo_value IS NOT NULL AND $__timeFilter(ts) ORDER BY ts"
+        }
+      ],
+      "description": "Map showing the vehicle's driven route from GPS location points."
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Trips (click to zoom)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 20,
+        "w": 8,
+        "x": 16,
+        "y": 5
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Start",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          },
+          "links": [
+            {
+              "title": "View trip",
+              "url": "/d/tesla-map?from=${__data.fields.started_epoch}&to=${__data.fields.ended_epoch}&var-vin=${__data.fields.vin}",
+              "targetBlank": false
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "trip_id"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "#"
+              },
+              {
+                "id": "custom.width",
+                "value": 30
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Start"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "mins"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Duration"
+              },
+              {
+                "id": "unit",
+                "value": "m"
+              },
+              {
+                "id": "custom.width",
+                "value": 70
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "distance_km"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Distance"
+              },
+              {
+                "id": "custom.width",
+                "value": 65
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max_speed_mph"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Max speed"
+              },
+              {
+                "id": "custom.width",
+                "value": 65
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_speed_mph"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Avg speed"
+              },
+              {
+                "id": "custom.width",
+                "value": 65
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "started_epoch"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ended_epoch"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "vin"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "soc_start"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "SoC start"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.width",
+                "value": 72
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "soc_end"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "SoC end"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.width",
+                "value": 62
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "soc_drop"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "SoC Δ"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.width",
+                "value": 55
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 3
+                    },
+                    {
+                      "color": "red",
+                      "value": 8
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-text"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "kwh_used"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "kWh"
+              },
+              {
+                "id": "unit",
+                "value": "kwh"
+              },
+              {
+                "id": "custom.width",
+                "value": 55
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "wh_per_km"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Efficiency"
+              },
+              {
+                "id": "custom.width",
+                "value": 58
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 200
+                    },
+                    {
+                      "color": "red",
+                      "value": 280
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-text"
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT vin, trip_id, started AT TIME ZONE 'Europe/London' AS \"Start\", ROUND(EXTRACT(EPOCH FROM duration)/60) AS mins, CASE WHEN '$dist_effective'='imperial' THEN ROUND((distance_km * 0.621371)::numeric, 1) ELSE distance_km END AS distance_km, CASE WHEN '$dist_effective'='imperial' THEN max_speed_mph ELSE ROUND((max_speed_mph * 1.60934)::numeric, 1) END AS max_speed_mph, CASE WHEN '$dist_effective'='imperial' THEN avg_speed_mph ELSE ROUND((avg_speed_mph * 1.60934)::numeric, 1) END AS avg_speed_mph, soc_start_pct AS soc_start, soc_end_pct AS soc_end, soc_used_pct AS soc_drop, kwh_used, CASE WHEN '$dist_effective'='imperial' THEN ROUND((wh_per_km * 1.60934)::numeric, 0) ELSE wh_per_km END AS wh_per_km, EXTRACT(EPOCH FROM started)*1000 AS started_epoch, EXTRACT(EPOCH FROM ended)*1000 AS ended_epoch FROM trips WHERE vin='$vin' AND started > NOW() - INTERVAL '30 days' ORDER BY started DESC LIMIT 50"
+        }
+      ],
+      "description": "List of recent trips; click a row to zoom the map to that time range."
+    },
+    {
+      "id": 3,
+      "type": "row",
+      "title": "🧭 Navigation",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "collapsed": false
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Destination",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 26
+      },
+      "description": "Current navigation destination name.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^value$/",
+          "values": false
+        },
+        "text": {},
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, str_value as value FROM telemetry_latest WHERE vin='$vin' AND field='DestinationName' AND str_value IS NOT NULL AND str_value != ''",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Miles to Arrival",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 8,
+        "y": 26
+      },
+      "description": "Remaining distance to navigation destination.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, CASE WHEN '$dist_effective'='imperial' THEN num_value ELSE num_value*1.60934 END as value FROM telemetry_latest WHERE vin='$vin' AND field='MilesToArrival' AND num_value > 0",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Minutes to Arrival",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 13,
+        "y": 26
+      },
+      "description": "Estimated minutes remaining to destination.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          },
+          "unit": "m"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, num_value as value FROM telemetry_latest WHERE vin='$vin' AND field='MinutesToArrival' AND num_value > 0",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Expected SoC at Arrival",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 26
+      },
+      "description": "Predicted battery SoC upon reaching destination.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 20
+              },
+              {
+                "color": "yellow",
+                "value": 40
+              },
+              {
+                "color": "green",
+                "value": 60
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, num_value as value FROM telemetry_latest WHERE vin='$vin' AND field='ExpectedEnergyPercentAtTripArrival' AND num_value > 0",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Traffic Delay",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 0,
+        "y": 30
+      },
+      "description": "Current route traffic delay in minutes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          },
+          "unit": "m"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, num_value as value FROM telemetry_latest WHERE vin='$vin' AND field='RouteTrafficMinutesDelay' AND num_value > 0",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Route Last Updated",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 8,
+        "y": 30
+      },
+      "description": "When the navigation route was last updated.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "dateTimeFromNow"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts as time, ts as value FROM telemetry_latest WHERE vin='$vin' AND field='RouteLastUpdated'",
+          "format": "time_series"
+        }
+      ]
+    }
+  ]
+}

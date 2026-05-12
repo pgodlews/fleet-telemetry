@@ -1,0 +1,21 @@
+apiVersion: 1
+
+datasources:
+  - name: Tesla TimescaleDB
+    type: postgres
+    uid: tesla_timescaledb
+    # On a test machine this can point at an autossh tunnel to the production DB.
+    # Override via GF_TESLA_DB_HOST env var or edit directly after deployment.
+    url: $GF_TESLA_DB_HOST
+    user: grafana_ro
+    secureJsonData:
+      password: $GF_TESLA_DB_PASSWORD
+    jsonData:
+      database: tesla
+      sslmode: disable
+      maxOpenConns: 5
+      maxIdleConns: 2
+      connMaxLifetime: 14400
+      postgresVersion: 1600
+      timescaledb: true
+    editable: true

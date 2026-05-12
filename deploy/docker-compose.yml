@@ -1,0 +1,66 @@
+name: tesla-telemetry
+
+services:
+  timescaledb:
+    image: timescale/timescaledb-ha:pg16
+    container_name: tesla-timescaledb
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: tesla
+    ports:
+      - "127.0.0.1:5432:5432"   # host-local only; WireGuard tunnel or SSH for remote access
+    volumes:
+      - /u01/tesla/pgdata:/home/postgres/pgdata/data
+      - ./sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tesla"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: tesla-grafana
+    restart: unless-stopped
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3003:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      # Override these to match your tunnel / direct DB host:
+      GF_TESLA_DB_HOST: ${GF_TESLA_DB_HOST:-timescaledb:5432}
+      GF_TESLA_DB_PASSWORD: ${GF_TESLA_DB_PASSWORD:-<YOUR_GRAFANA_DB_PASSWORD>}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboard-configs:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+
+  fleet-telemetry:
+    profiles: ["live"]
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: tesla-fleet-telemetry
+    restart: unless-stopped
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    ports:
+      - "4443:4443"   # mTLS WebSocket — Tesla cars connect here
+      - "9090:9090"   # metrics / health
+    volumes:
+      - ./fleet-telemetry/config.json:/etc/fleet-telemetry/config.json:ro
+      - ./fleet-telemetry/certs:/etc/fleet-telemetry/certs:ro
+    environment:
+      - CONFIG_FILENAME=/etc/fleet-telemetry/config.json
+
+
+volumes:
+  grafana_data:

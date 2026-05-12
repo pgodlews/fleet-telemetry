@@ -1,0 +1,2407 @@
+{
+  "uid": "tesla-allstats",
+  "title": "Tesla — All Stats",
+  "tags": [
+    "tesla",
+    "all-stats"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "vin",
+        "label": "VIN",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "tesla_timescaledb"
+        },
+        "query": "SELECT DISTINCT vin AS __text, vin AS __value FROM telemetry ORDER BY 1",
+        "refresh": 2
+      },
+      {
+        "name": "field_filter",
+        "label": "Field filter",
+        "type": "textbox",
+        "current": {
+          "text": "%",
+          "value": "%"
+        }
+      },
+      {
+        "name": "category",
+        "label": "Category",
+        "type": "custom",
+        "multi": true,
+        "includeAll": true,
+        "query": "Charging,Powertrain,Vehicle State,Climate,Service,Safety,Vehicle Configuration,Location,Driving,Media,User Preference",
+        "current": {
+          "text": "All",
+          "value": "$__all",
+          "selected": true
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 9990,
+      "panels": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "left",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": false
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "f": {
+                      "color": "red",
+                      "index": 0,
+                      "text": "❌ No"
+                    },
+                    "t": {
+                      "color": "green",
+                      "index": 1,
+                      "text": "✅ Yes"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 24,
+            "x": 0,
+            "y": 1
+          },
+          "id": 9991,
+          "options": {
+            "cellHeight": "sm",
+            "footer": {
+              "countRows": false,
+              "enablePagination": false,
+              "fields": "",
+              "reducer": [],
+              "show": false
+            },
+            "showHeader": true,
+            "sortBy": []
+          },
+          "pluginVersion": "11.2.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "postgres",
+                "uid": "tesla_timescaledb"
+              },
+              "format": "table",
+              "rawSql": "SELECT model AS \"Model\", model_year AS \"Year\", motor_config AS \"Motor\", has_heat_pump AS \"Heat Pump\", has_air_suspension AS \"Air Suspension\" FROM detect_vehicle_from_vin('$vin')",
+              "refId": "A"
+            }
+          ],
+          "title": "Decoded VIN: $vin",
+          "type": "table",
+          "description": "Vehicle information decoded from the selected VIN using the detect_vehicle_from_vin() database function."
+        }
+      ],
+      "title": "🚗 Vehicle Info",
+      "type": "row"
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Fields seen in last 24h",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT field) AS fields FROM telemetry WHERE vin='$vin' AND ts > NOW() - INTERVAL '24 hours'"
+        }
+      ],
+      "description": "Count of distinct telemetry fields received in the last 24 hours."
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Total samples (24h)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) AS samples FROM telemetry WHERE vin='$vin' AND ts > NOW() - INTERVAL '24 hours'"
+        }
+      ],
+      "description": "Total number of telemetry samples stored in the last 24 hours."
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Coverage by category",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 5
+      },
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT fc.category, COUNT(*) FILTER (WHERE t.field IS NOT NULL) AS seen, COUNT(*) AS total FROM field_catalog fc LEFT JOIN telemetry_latest t ON t.vin='$vin' AND t.field=fc.field GROUP BY fc.category ORDER BY 1"
+        }
+      ],
+      "description": "How many fields in each category have been seen vs. catalogued."
+    },
+    {
+      "id": 4,
+      "type": "row",
+      "title": "Charging (56 fields)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "panels": []
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Charging",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "age_hours",
+            "desc": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "value_num"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "updated"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "age_hours"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "h"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 24
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "type"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "blue",
+                        "text": "numeric"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "numeric|float|int"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "purple",
+                        "text": "string"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "string|text"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "orange",
+                        "text": "boolean"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "bool"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "cyan",
+                        "text": "geo"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "geo|location"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT fc.field, fc.type, t.num_value AS value_num, t.str_value AS value_str, t.ts AS updated, ROUND(EXTRACT(EPOCH FROM (NOW() - t.ts))/3600, 1) AS age_hours, fc.description FROM field_catalog fc LEFT JOIN telemetry_latest t ON t.vin='$vin' AND t.field=fc.field WHERE fc.category = 'Charging' AND fc.field LIKE '$field_filter' ORDER BY fc.field"
+        }
+      ],
+      "description": "Detailed table of all Charging category fields with latest values."
+    },
+    {
+      "id": 6,
+      "type": "row",
+      "title": "Powertrain (35 fields)",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "panels": []
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Powertrain",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "age_hours",
+            "desc": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "value_num"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "updated"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "age_hours"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "h"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 24
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "type"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "blue",
+                        "text": "numeric"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "numeric|float|int"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "purple",
+                        "text": "string"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "string|text"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "orange",
+                        "text": "boolean"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "bool"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "cyan",
+                        "text": "geo"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "geo|location"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT fc.field, fc.type, t.num_value AS value_num, t.str_value AS value_str, t.ts AS updated, ROUND(EXTRACT(EPOCH FROM (NOW() - t.ts))/3600, 1) AS age_hours, fc.description FROM field_catalog fc LEFT JOIN telemetry_latest t ON t.vin='$vin' AND t.field=fc.field WHERE fc.category = 'Powertrain' AND fc.field LIKE '$field_filter' ORDER BY fc.field"
+        }
+      ],
+      "description": "Detailed table of all Powertrain category fields with latest values."
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "Vehicle State (32 fields)",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
+      "panels": []
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Vehicle State",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "age_hours",
+            "desc": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "value_num"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "updated"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "age_hours"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "h"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 24
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "type"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "blue",
+                        "text": "numeric"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "numeric|float|int"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "purple",
+                        "text": "string"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "string|text"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "orange",
+                        "text": "boolean"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "bool"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "cyan",
+                        "text": "geo"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "geo|location"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT fc.field, fc.type, t.num_value AS value_num, t.str_value AS value_str, t.ts AS updated, ROUND(EXTRACT(EPOCH FROM (NOW() - t.ts))/3600, 1) AS age_hours, fc.description FROM field_catalog fc LEFT JOIN telemetry_latest t ON t.vin='$vin' AND t.field=fc.field WHERE fc.category = 'Vehicle State' AND fc.field LIKE '$field_filter' ORDER BY fc.field"
+        }
+      ],
+      "description": "Detailed table of all Vehicle State category fields with latest values."
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Climate (29 fields)",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      },
+      "panels": []
+    },
+    {
+      "id": 11,
+      "type": "table",
+      "title": "Climate",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 49
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "age_hours",
+            "desc": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "value_num"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "updated"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "age_hours"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "h"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 24
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "type"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "blue",
+                        "text": "numeric"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "numeric|float|int"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "purple",
+                        "text": "string"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "string|text"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "orange",
+                        "text": "boolean"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "bool"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "cyan",
+                        "text": "geo"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "geo|location"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT fc.field, fc.type, t.num_value AS value_num, t.str_value AS value_str, t.ts AS updated, ROUND(EXTRACT(EPOCH FROM (NOW() - t.ts))/3600, 1) AS age_hours, fc.description FROM field_catalog fc LEFT JOIN telemetry_latest t ON t.vin='$vin' AND t.field=fc.field WHERE fc.category = 'Climate' AND fc.field LIKE '$field_filter' ORDER BY fc.field"
+        }
+      ],
+      "description": "Detailed table of all Climate category fields with latest values."
+    },
+    {
+      "id": 12,
+      "type": "row",
+      "title": "Service (19 fields)",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 61
+      },
+      "panels": []
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Service",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 62
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "age_hours",
+            "desc": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "value_num"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "updated"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "age_hours"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "h"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 24
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "type"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "blue",
+                        "text": "numeric"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "numeric|float|int"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "purple",
+                        "text": "string"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "string|text"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "orange",
+                        "text": "boolean"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "bool"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "cyan",
+                        "text": "geo"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "geo|location"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT fc.field, fc.type, t.num_value AS value_num, t.str_value AS value_str, t.ts AS updated, ROUND(EXTRACT(EPOCH FROM (NOW() - t.ts))/3600, 1) AS age_hours, fc.description FROM field_catalog fc LEFT JOIN telemetry_latest t ON t.vin='$vin' AND t.field=fc.field WHERE fc.category = 'Service' AND fc.field LIKE '$field_filter' ORDER BY fc.field"
+        }
+      ],
+      "description": "Detailed table of all Service category fields with latest values."
+    },
+    {
+      "id": 14,
+      "type": "row",
+      "title": "Safety (14 fields)",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 74
+      },
+      "panels": []
+    },
+    {
+      "id": 15,
+      "type": "table",
+      "title": "Safety",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 75
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "age_hours",
+            "desc": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "value_num"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "updated"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "age_hours"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "h"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 24
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "type"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "blue",
+                        "text": "numeric"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "numeric|float|int"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "purple",
+                        "text": "string"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "string|text"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "orange",
+                        "text": "boolean"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "bool"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "cyan",
+                        "text": "geo"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "geo|location"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT fc.field, fc.type, t.num_value AS value_num, t.str_value AS value_str, t.ts AS updated, ROUND(EXTRACT(EPOCH FROM (NOW() - t.ts))/3600, 1) AS age_hours, fc.description FROM field_catalog fc LEFT JOIN telemetry_latest t ON t.vin='$vin' AND t.field=fc.field WHERE fc.category = 'Safety' AND fc.field LIKE '$field_filter' ORDER BY fc.field"
+        }
+      ],
+      "description": "Detailed table of all Safety category fields with latest values."
+    },
+    {
+      "id": 16,
+      "type": "row",
+      "title": "Vehicle Configuration (14 fields)",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 87
+      },
+      "panels": []
+    },
+    {
+      "id": 17,
+      "type": "table",
+      "title": "Vehicle Configuration",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 88
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "age_hours",
+            "desc": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "value_num"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "updated"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "age_hours"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "h"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 24
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "type"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "blue",
+                        "text": "numeric"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "numeric|float|int"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "purple",
+                        "text": "string"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "string|text"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "orange",
+                        "text": "boolean"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "bool"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "cyan",
+                        "text": "geo"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "geo|location"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT fc.field, fc.type, t.num_value AS value_num, t.str_value AS value_str, t.ts AS updated, ROUND(EXTRACT(EPOCH FROM (NOW() - t.ts))/3600, 1) AS age_hours, fc.description FROM field_catalog fc LEFT JOIN telemetry_latest t ON t.vin='$vin' AND t.field=fc.field WHERE fc.category = 'Vehicle Configuration' AND fc.field LIKE '$field_filter' ORDER BY fc.field"
+        }
+      ],
+      "description": "Detailed table of all Vehicle Configuration category fields with latest values."
+    },
+    {
+      "id": 18,
+      "type": "row",
+      "title": "Location (13 fields)",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 100
+      },
+      "panels": []
+    },
+    {
+      "id": 19,
+      "type": "table",
+      "title": "Location",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 101
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "age_hours",
+            "desc": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "value_num"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "updated"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "age_hours"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "h"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 24
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "type"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "blue",
+                        "text": "numeric"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "numeric|float|int"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "purple",
+                        "text": "string"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "string|text"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "orange",
+                        "text": "boolean"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "bool"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "cyan",
+                        "text": "geo"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "geo|location"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT fc.field, fc.type, t.num_value AS value_num, t.str_value AS value_str, t.ts AS updated, ROUND(EXTRACT(EPOCH FROM (NOW() - t.ts))/3600, 1) AS age_hours, fc.description FROM field_catalog fc LEFT JOIN telemetry_latest t ON t.vin='$vin' AND t.field=fc.field WHERE fc.category = 'Location' AND fc.field LIKE '$field_filter' ORDER BY fc.field"
+        }
+      ],
+      "description": "Detailed table of all Location category fields with latest values."
+    },
+    {
+      "id": 20,
+      "type": "row",
+      "title": "Driving (11 fields)",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 113
+      },
+      "panels": []
+    },
+    {
+      "id": 21,
+      "type": "table",
+      "title": "Driving",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 114
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "age_hours",
+            "desc": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "value_num"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "updated"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "age_hours"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "h"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 24
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "type"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "blue",
+                        "text": "numeric"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "numeric|float|int"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "purple",
+                        "text": "string"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "string|text"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "orange",
+                        "text": "boolean"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "bool"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "cyan",
+                        "text": "geo"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "geo|location"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT fc.field, fc.type, t.num_value AS value_num, t.str_value AS value_str, t.ts AS updated, ROUND(EXTRACT(EPOCH FROM (NOW() - t.ts))/3600, 1) AS age_hours, fc.description FROM field_catalog fc LEFT JOIN telemetry_latest t ON t.vin='$vin' AND t.field=fc.field WHERE fc.category = 'Driving' AND fc.field LIKE '$field_filter' ORDER BY fc.field"
+        }
+      ],
+      "description": "Detailed table of all Driving category fields with latest values."
+    },
+    {
+      "id": 22,
+      "type": "row",
+      "title": "Media (11 fields)",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 126
+      },
+      "panels": []
+    },
+    {
+      "id": 23,
+      "type": "table",
+      "title": "Media",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 127
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "age_hours",
+            "desc": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "value_num"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "updated"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "age_hours"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "h"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 24
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "type"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "blue",
+                        "text": "numeric"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "numeric|float|int"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "purple",
+                        "text": "string"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "string|text"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "orange",
+                        "text": "boolean"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "bool"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "cyan",
+                        "text": "geo"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "geo|location"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT fc.field, fc.type, t.num_value AS value_num, t.str_value AS value_str, t.ts AS updated, ROUND(EXTRACT(EPOCH FROM (NOW() - t.ts))/3600, 1) AS age_hours, fc.description FROM field_catalog fc LEFT JOIN telemetry_latest t ON t.vin='$vin' AND t.field=fc.field WHERE fc.category = 'Media' AND fc.field LIKE '$field_filter' ORDER BY fc.field"
+        }
+      ],
+      "description": "Detailed table of all Media category fields with latest values."
+    },
+    {
+      "id": 24,
+      "type": "row",
+      "title": "User Preference (5 fields)",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 139
+      },
+      "panels": []
+    },
+    {
+      "id": 25,
+      "type": "table",
+      "title": "User Preference",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 140
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "age_hours",
+            "desc": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "value_num"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "updated"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "age_hours"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "h"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 24
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "type"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "blue",
+                        "text": "numeric"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "numeric|float|int"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "purple",
+                        "text": "string"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "string|text"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "orange",
+                        "text": "boolean"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "bool"
+                  },
+                  {
+                    "options": {
+                      "from": null,
+                      "result": {
+                        "color": "cyan",
+                        "text": "geo"
+                      },
+                      "to": null
+                    },
+                    "type": "regex",
+                    "match": "geo|location"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT fc.field, fc.type, t.num_value AS value_num, t.str_value AS value_str, t.ts AS updated, ROUND(EXTRACT(EPOCH FROM (NOW() - t.ts))/3600, 1) AS age_hours, fc.description FROM field_catalog fc LEFT JOIN telemetry_latest t ON t.vin='$vin' AND t.field=fc.field WHERE fc.category = 'User Preference' AND fc.field LIKE '$field_filter' ORDER BY fc.field"
+        }
+      ],
+      "description": "Detailed table of all User Preference category fields with latest values."
+    }
+  ]
+}

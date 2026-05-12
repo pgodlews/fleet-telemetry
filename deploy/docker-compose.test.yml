@@ -1,0 +1,107 @@
+name: tesla-telemetry-test
+
+# Test environment for <test-machine> homelab.
+# - TimescaleDB on port 5435 (avoids conflict with production on 5432)
+# - Grafana on port 3004
+# - fleet-telemetry on port 4444 (testing only, no mTLS cert required)
+# - Simulator (always on — no profile gate) writing directly to postgres
+#
+# Pre-requisites on <test-machine>:
+#   1. mkdir -p ~/docker/tesla-test/pgdata
+#   2. Place pg_dump snapshot at ~/docker/tesla-test/snapshot.dump
+#   3. docker compose -f docker-compose.test.yml up -d
+#   4. Wait for timescaledb healthy, then restore:
+#        docker exec tesla-test-timescaledb psql -U postgres -c "SELECT timescaledb_pre_restore();"
+#        docker exec -i tesla-test-timescaledb pg_restore -U postgres -d tesla --no-owner --role=postgres < ~/docker/tesla-test/snapshot.dump
+#        docker exec tesla-test-timescaledb psql -U postgres -c "SELECT timescaledb_post_restore();"
+#   5. Run all migrations in order 001-017 if restoring a pre-PM snapshot.
+#
+# Grafana: http://<test-machine>:3004  (admin / admin)
+# TimescaleDB: psql -h <test-machine> -p 5435 -U postgres -d tesla
+
+services:
+  timescaledb-test:
+    image: timescale/timescaledb-ha:pg16
+    container_name: tesla-test-timescaledb
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: tesla
+    ports:
+      - "127.0.0.1:5435:5432"
+    volumes:
+      - ${TESLA_TEST_PGDATA:-/home/<your-user>/docker/tesla-test/pgdata}:/home/postgres/pgdata/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tesla"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks:
+      - tesla-test
+
+  grafana-test:
+    image: grafana/grafana:11.2.0
+    container_name: tesla-test-grafana
+    restart: unless-stopped
+    depends_on:
+      timescaledb-test:
+        condition: service_healthy
+    ports:
+      - "3004:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_TESLA_DB_HOST: timescaledb-test:5432
+      GF_TESLA_DB_PASSWORD: ${GF_TESLA_DB_PASSWORD:-grafana_ro}
+    volumes:
+      - tesla_test_grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboard-configs:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+    networks:
+      - tesla-test
+
+  fleet-telemetry-test:
+    profiles: ["ft"]
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: tesla-test-fleet-telemetry
+    restart: unless-stopped
+    depends_on:
+      timescaledb-test:
+        condition: service_healthy
+    ports:
+      - "4444:4443"   # mTLS WebSocket (test only — no real certs needed for simulator path)
+      - "9091:9090"   # metrics / health (avoids conflict with prometheus on 9090)
+    volumes:
+      - ./fleet-telemetry/config.json:/etc/fleet-telemetry/config.json:ro
+      - ./fleet-telemetry/certs:/etc/fleet-telemetry/certs:ro
+    environment:
+      - CONFIG_FILENAME=/etc/fleet-telemetry/config.json
+    networks:
+      - tesla-test
+
+  simulator:
+    image: fleet-telemetry-simulator:latest
+    container_name: tesla-test-simulator
+    restart: unless-stopped
+    depends_on:
+      timescaledb-test:
+        condition: service_healthy
+    environment:
+      SIMULATOR_CONN: "postgres://postgres:${POSTGRES_PASSWORD:-changeme}@timescaledb-test:5432/tesla"
+      SIMULATOR_VINS: "5YJ3E1EA7NF000001,7G2CCFG00PF000001,5YJ3E7EC1RF000001"
+      SIMULATOR_INTERVAL: "30"
+      SIMULATOR_BACKFILL_DAYS: "90"
+    networks:
+      - tesla-test
+
+volumes:
+  tesla_test_grafana_data:
+
+networks:
+  tesla-test:
+    name: tesla-test
