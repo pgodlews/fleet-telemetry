@@ -350,9 +350,12 @@ SELECT
   ROUND(lifetime_energy_gained_regen::numeric, 2) AS lifetime_regen_kwh,
   ROUND((regen_ratio * 100)::numeric, 1) AS lifetime_regen_ratio_pct,
   ROUND((COALESCE(recent_regen_ratio, regen_ratio) * 100)::numeric, 1) AS recent_regen_ratio_pct,
-  -- Wear calculation
-  ROUND((odometer / 50000.0 * (1 - COALESCE(recent_regen_ratio, regen_ratio)) * 100)::numeric, 1)
-    AS wear_pct,
+  -- Wear calculation.  Clamped to [0, 100] (N1 fix) — for very high-odometer
+  -- vehicles the raw expression can exceed 100, which is meaningless and
+  -- breaks downstream LEAST/GREATEST consumers in 014.
+  ROUND(LEAST(100, GREATEST(0,
+      odometer / 50000.0 * (1 - COALESCE(recent_regen_ratio, regen_ratio)) * 100
+    ))::numeric, 1) AS wear_pct,
   ROUND(GREATEST(0, 100 - (odometer / 50000.0 * (1 - COALESCE(recent_regen_ratio, regen_ratio)) * 100))::numeric, 1)
     AS remaining_pct,
   -- Estimated pad life remaining (miles)

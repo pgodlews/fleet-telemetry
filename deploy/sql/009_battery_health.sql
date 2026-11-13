@@ -91,71 +91,66 @@ WHERE field IN (
 GROUP BY bucket, vin;
 
 -- ------------------------------------------------------------------
--- 2.  Daily capacity & brick-health CAGG (built on hourly pivot)
+-- 2.  Daily capacity & brick-health matview (built on hourly pivot)
 --
--- Rest-hour filter (repeated inline because CAGGs do not support
--- referencing computed booleans inside FILTER clauses):
+-- Rest-hour criteria:
 --   • parked  (speed = 0, gear = P)
 --   • not charging  (AC/DC power = 0)
 --   • low power draw  (|I·V| < 500 W)
+--
+-- R3 fix: previously the 5-line rest-hour predicate was inlined into
+-- five separate FILTER clauses.  We now compute an `is_rest` /
+-- `is_rest_with_level` boolean once in a CTE — when the criteria
+-- change, there is exactly one place to update.  This works because
+-- battery_capacity_1d is a plain MATERIALIZED VIEW (not a CAGG, which
+-- would reject computed-column references inside FILTER).
 -- ------------------------------------------------------------------
 -- NOTE: converted from continuous aggregate to regular matview
---       (hierarchical CAGGs unsupported after DROP+RECREATE)
+--       (hierarchical CAGGs unsupported after DROP+RECREATE).
+--       Auto-refresh is wired by 025_pm_review_fixes.sql (B3 fix).
 DROP MATERIALIZED VIEW IF EXISTS battery_capacity_1d CASCADE;
 
 CREATE MATERIALIZED VIEW battery_capacity_1d AS
+WITH tagged AS (
+  SELECT
+    bucket,
+    vin,
+    energy_remaining_last,
+    battery_level_last,
+    ideal_range_last,
+    rated_range_last,
+    brick_v_max,
+    brick_v_min,
+    -- Single source of truth for "vehicle is resting"
+    (
+      (vehicle_speed_max IS NULL OR vehicle_speed_max <= 0)
+      AND (gear IS NULL OR gear IN ('P', 'ShiftStateP', 'invalid', ''))
+      AND (ac_charge_power_max IS NULL OR ac_charge_power_max <= 0)
+      AND (dc_charge_power_max IS NULL OR dc_charge_power_max <= 0)
+      AND ABS(COALESCE(pack_current_avg, 0) * COALESCE(pack_voltage_avg, 0)) < 500
+    ) AS is_rest
+  FROM battery_samples_1h
+)
 SELECT
   time_bucket('1 day', bucket) AS bucket,
   vin,
-  -- Rest hours count
-  COUNT(*) FILTER (WHERE
-    (vehicle_speed_max IS NULL OR vehicle_speed_max <= 0)
-    AND (gear IS NULL OR gear IN ('P', 'ShiftStateP', 'invalid', ''))
-    AND (ac_charge_power_max IS NULL OR ac_charge_power_max <= 0)
-    AND (dc_charge_power_max IS NULL OR dc_charge_power_max <= 0)
-    AND ABS(COALESCE(pack_current_avg, 0) * COALESCE(pack_voltage_avg, 0)) < 500
-  ) AS rest_hours,
-  -- Derived capacity: EnergyRemaining / (BatteryLevel/100) during rest
-  -- We use the LAST rest-hour reading of the day (most stable).
-  LAST(energy_remaining_last, bucket) FILTER (WHERE
-    (vehicle_speed_max IS NULL OR vehicle_speed_max <= 0)
-    AND (gear IS NULL OR gear IN ('P', 'ShiftStateP', 'invalid', ''))
-    AND (ac_charge_power_max IS NULL OR ac_charge_power_max <= 0)
-    AND (dc_charge_power_max IS NULL OR dc_charge_power_max <= 0)
-    AND ABS(COALESCE(pack_current_avg, 0) * COALESCE(pack_voltage_avg, 0)) < 500
-    AND battery_level_last > 0
-  ) AS energy_remaining_rest,
-  LAST(battery_level_last, bucket) FILTER (WHERE
-    (vehicle_speed_max IS NULL OR vehicle_speed_max <= 0)
-    AND (gear IS NULL OR gear IN ('P', 'ShiftStateP', 'invalid', ''))
-    AND (ac_charge_power_max IS NULL OR ac_charge_power_max <= 0)
-    AND (dc_charge_power_max IS NULL OR dc_charge_power_max <= 0)
-    AND ABS(COALESCE(pack_current_avg, 0) * COALESCE(pack_voltage_avg, 0)) < 500
-    AND battery_level_last > 0
-  ) AS battery_level_rest,
-  -- Range at rest (last reading of the day)
-  LAST(ideal_range_last, bucket) FILTER (WHERE
-    (vehicle_speed_max IS NULL OR vehicle_speed_max <= 0)
-    AND (gear IS NULL OR gear IN ('P', 'ShiftStateP', 'invalid', ''))
-    AND (ac_charge_power_max IS NULL OR ac_charge_power_max <= 0)
-    AND (dc_charge_power_max IS NULL OR dc_charge_power_max <= 0)
-    AND ABS(COALESCE(pack_current_avg, 0) * COALESCE(pack_voltage_avg, 0)) < 500
-  ) AS ideal_range_rest,
-  LAST(rated_range_last, bucket) FILTER (WHERE
-    (vehicle_speed_max IS NULL OR vehicle_speed_max <= 0)
-    AND (gear IS NULL OR gear IN ('P', 'ShiftStateP', 'invalid', ''))
-    AND (ac_charge_power_max IS NULL OR ac_charge_power_max <= 0)
-    AND (dc_charge_power_max IS NULL OR dc_charge_power_max <= 0)
-    AND ABS(COALESCE(pack_current_avg, 0) * COALESCE(pack_voltage_avg, 0)) < 500
-  ) AS rated_range_rest,
+  COUNT(*) FILTER (WHERE is_rest) AS rest_hours,
+  -- Derived capacity: EnergyRemaining / (BatteryLevel/100) during rest.
+  -- We use the LAST rest-hour reading of the day (most stable).  The
+  -- battery_level > 0 guard prevents a divide-by-zero in downstream
+  -- views; the bare rest filter is used for ranges (no division).
+  LAST(energy_remaining_last, bucket)
+    FILTER (WHERE is_rest AND battery_level_last > 0) AS energy_remaining_rest,
+  LAST(battery_level_last,   bucket)
+    FILTER (WHERE is_rest AND battery_level_last > 0) AS battery_level_rest,
+  LAST(ideal_range_last,     bucket) FILTER (WHERE is_rest) AS ideal_range_rest,
+  LAST(rated_range_last,     bucket) FILTER (WHERE is_rest) AS rated_range_rest,
   -- Brick imbalance (max delta seen any time during the day)
-  MAX(brick_v_max - brick_v_min) FILTER (WHERE
-    brick_v_max IS NOT NULL AND brick_v_min IS NOT NULL
-  ) AS brick_delta_max,
-  AVG(brick_v_max - brick_v_min) FILTER (WHERE
-    brick_v_max IS NOT NULL AND brick_v_min IS NOT NULL
-  ) AS brick_delta_avg
-FROM battery_samples_1h
+  MAX(brick_v_max - brick_v_min)
+    FILTER (WHERE brick_v_max IS NOT NULL AND brick_v_min IS NOT NULL) AS brick_delta_max,
+  AVG(brick_v_max - brick_v_min)
+    FILTER (WHERE brick_v_max IS NOT NULL AND brick_v_min IS NOT NULL) AS brick_delta_avg
+FROM tagged
 GROUP BY time_bucket('1 day', bucket), vin;
 
 -- ------------------------------------------------------------------

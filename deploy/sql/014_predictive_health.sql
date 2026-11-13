@@ -6,7 +6,7 @@
 -- single unified health score per VIN, plus a 30-day time-series
 -- for trend visualisation.
 --
--- Subsystems scored (weights sum to 1.0):
+-- Subsystems scored (weights sum to 1.00):
 --   Battery Health     22 %  — capacity fade, brick imbalance, alerts
 --   Drivetrain         14 %  — inverter temps, torque degradation
 --   Alerts             15 %  — active critical/urgent/warning count
@@ -14,10 +14,17 @@
 --   Heat Pump          10 %  — power-per-degree degradation
 --   Regen / Brake       7 %  — regen capability, pad wear
 --   Suspension          4 %  — steering offset, chassis alerts
---   Air Suspension      5 %  — compressor over-cycling, ride-height leaks
+--   Air Suspension      4 %  — compressor over-cycling, ride-height leaks
 --   Dual Motor          5 %  — front-rear imbalance, regen, thermal throttling
---   Cybertruck          5 %  — tonneau, V2L, tri-motor, 4680 battery, air suspension
+--   Cybertruck          4 %  — tonneau, V2L, tri-motor, 4680 battery, air suspension
 --   PCS                 5 %  — onboard charger module health
+--                     -----
+--                      100 %
+--
+-- Note: the air-suspension and cybertruck weights were reduced from 5 % to 4 %
+-- in the 025_pm_review_fixes migration so the sum is exactly 1.00.  The two
+-- feature-gated subsystems were chosen because they default to a neutral 5
+-- for non-equipped vehicles, so the impact on a typical Model 3 is zero.
 --
 -- Scoring scale (0 = healthy, 100 = critical):
 --    0–30  → Healthy   (green)
@@ -292,19 +299,19 @@ ph_inner AS (SELECT
   COALESCE(MAX(air_suspension_score), 5) AS air_suspension_score,
   COALESCE(MAX(dual_motor_score),    5) AS dual_motor_score,
   COALESCE(MAX(cybertruck_score),    5) AS cybertruck_score,
-  -- Weighted overall score
+  -- Weighted overall score (weights sum to 1.00; see header comment)
   ROUND((
-    COALESCE(MAX(battery_score),     5) * 0.22 +
-    COALESCE(MAX(drivetrain_score),  5) * 0.14 +
-    COALESCE(MAX(alert_score),       5) * 0.15 +
-    COALESCE(MAX(low_voltage_score), 5) * 0.10 +
-    COALESCE(MAX(heat_pump_score),   5) * 0.10 +
-    COALESCE(MAX(regen_brake_score), 5) * 0.07 +
-    COALESCE(MAX(suspension_score),  5) * 0.04 +
-    COALESCE(MAX(air_suspension_score), 5) * 0.05 +
-    COALESCE(MAX(dual_motor_score),    5) * 0.05 +
-    COALESCE(MAX(cybertruck_score),    5) * 0.05 +
-    COALESCE(MAX(pcs_score),         5) * 0.05
+    COALESCE(MAX(battery_score),        5) * 0.22 +
+    COALESCE(MAX(drivetrain_score),     5) * 0.14 +
+    COALESCE(MAX(alert_score),          5) * 0.15 +
+    COALESCE(MAX(low_voltage_score),    5) * 0.10 +
+    COALESCE(MAX(heat_pump_score),      5) * 0.10 +
+    COALESCE(MAX(regen_brake_score),    5) * 0.07 +
+    COALESCE(MAX(suspension_score),     5) * 0.04 +
+    COALESCE(MAX(air_suspension_score), 5) * 0.04 +
+    COALESCE(MAX(dual_motor_score),     5) * 0.05 +
+    COALESCE(MAX(cybertruck_score),     5) * 0.04 +
+    COALESCE(MAX(pcs_score),            5) * 0.05
   )::numeric, 1) AS overall_risk_score,
   -- Highest-risk subsystem name
   CASE GREATEST(
@@ -421,9 +428,43 @@ WITH scores AS (
   LEFT JOIN dual_motor_summary          dm  ON dm.vin = v.vin
   LEFT JOIN cybertruck_summary          ct  ON ct.vin = v.vin
   LEFT JOIN pcs_status_summary          pcs ON pcs.vin = v.vin
+),
+-- ranked CTE folds in derived columns so the overall_risk_score is computed
+-- exactly once (B1 fix) and downstream CASE statements reference it instead
+-- of re-summing the weighted expression.  thermal_risk is now a continuous
+-- mapping rather than a 2-state step (R1 fix), and telemetry freshness is
+-- exposed so dashboards can distinguish "healthy" from "no data" (B4 fix).
+ranked AS (
+  SELECT
+    s.*,
+    -- Continuous brick-imbalance risk: 0 V → 0, 0.5 V → 100 (was {5,50} step)
+    LEAST(100, GREATEST(0, COALESCE(s.last_day_brick_delta_max, 0) * 200))
+      ::INTEGER AS brick_delta_score,
+    -- Newest telemetry timestamp & age in hours.  A subsystem score of 5
+    -- (= NORMAL) only means "healthy" when telemetry_age_h is recent; if
+    -- it is large, the score should be interpreted as "unknown" instead.
+    (SELECT MAX(ts) FROM telemetry t WHERE t.vin = s.vin) AS telemetry_last_ts,
+    ROUND((EXTRACT(EPOCH FROM (
+      NOW() - (SELECT MAX(ts) FROM telemetry t WHERE t.vin = s.vin)
+    )) / 3600.0)::numeric, 1) AS telemetry_age_h,
+    -- Overall weighted score: single source of truth.  Weights sum to 1.00.
+    ROUND((
+      s.battery_score        * 0.22 +
+      s.drivetrain_score     * 0.14 +
+      s.alert_score          * 0.15 +
+      s.low_voltage_score    * 0.10 +
+      s.heat_pump_score      * 0.10 +
+      s.regen_brake_score    * 0.07 +
+      s.suspension_score     * 0.04 +
+      s.air_suspension_score * 0.04 +
+      s.dual_motor_score     * 0.05 +
+      s.cybertruck_score     * 0.04 +
+      s.pcs_score            * 0.05
+    )::numeric, 1) AS overall_risk_score
+  FROM scores s
 )
 SELECT
-  scores.vin,
+  ranked.vin,
   battery_score,
   drivetrain_score,
   alert_score,
@@ -439,22 +480,13 @@ SELECT
   ROUND(battery_score::numeric, 0) AS battery_risk,
   ROUND((drivetrain_score * 0.60 + regen_brake_score * 0.25 + pcs_score * 0.15)::numeric, 0)
     AS powertrain_risk,
-  ROUND((heat_pump_score * 0.60 + CASE WHEN COALESCE(last_day_brick_delta_max, 0) > 0.3 THEN 50 ELSE 5 END * 0.40)::numeric, 0)
+  -- Thermal risk is a true continuous blend (R1 fix): heat-pump degradation
+  -- weighted 0.60, brick imbalance scaled 0–100 weighted 0.40.
+  ROUND((heat_pump_score * 0.60 + brick_delta_score * 0.40)::numeric, 0)
     AS thermal_risk,
-  -- Overall weighted score
-  ROUND((
-    battery_score        * 0.22 +
-    drivetrain_score     * 0.14 +
-    alert_score          * 0.15 +
-    low_voltage_score    * 0.10 +
-    heat_pump_score      * 0.10 +
-    regen_brake_score    * 0.07 +
-    suspension_score     * 0.04 +
-    air_suspension_score * 0.05 +
-    dual_motor_score     * 0.05 +
-    cybertruck_score     * 0.05 +
-    pcs_score            * 0.05
-  )::numeric, 1) AS overall_risk_score,
+  overall_risk_score,
+  telemetry_last_ts,
+  telemetry_age_h,
   -- Highest risk subsystem
   CASE GREATEST(battery_score, drivetrain_score, alert_score, low_voltage_score,
                 heat_pump_score, regen_brake_score, suspension_score, air_suspension_score, dual_motor_score, cybertruck_score, pcs_score)
@@ -476,7 +508,9 @@ SELECT
   COALESCE(total_active, 0)    AS total_active_alerts,
   COALESCE(critical_codes, '') AS active_critical_codes,
   COALESCE(urgent_codes, '')   AS active_urgent_codes,
-  -- Recommended action
+  -- Recommended action.  Heat-pump degradation now routes to a service
+  -- recommendation (N4 fix); the overall thresholds reference the named
+  -- overall_risk_score column rather than re-summing weights (B1 fix).
   CASE
     WHEN COALESCE(critical_active, 0) > 0
       THEN 'IMMEDIATE SERVICE — Critical: ' || COALESCE(critical_codes, '')
@@ -484,6 +518,8 @@ SELECT
       THEN 'Schedule battery service — degradation or imbalance detected'
     WHEN drivetrain_score >= 85
       THEN 'Schedule drivetrain inspection — inverter overheat or motor degradation'
+    WHEN heat_pump_score >= 75
+      THEN 'Schedule HVAC inspection — heat-pump power-per-degree drift detected'
     WHEN air_suspension_score >= 75
       THEN 'Schedule air-suspension inspection — compressor over-cycling or leak suspected'
     WHEN dual_motor_score >= 75
@@ -492,15 +528,9 @@ SELECT
       THEN 'Schedule Cybertruck-specific inspection — tonneau, V2L, tri-motor, or 4680 battery issue'
     WHEN alert_score >= 75 AND COALESCE(urgent_active, 0) > 0
       THEN 'Schedule service — Urgent: ' || COALESCE(urgent_codes, '')
-    WHEN (battery_score * 0.22 + drivetrain_score * 0.14 + alert_score * 0.15 +
-          low_voltage_score * 0.10 + heat_pump_score * 0.10 + regen_brake_score * 0.07 +
-          suspension_score * 0.04 + air_suspension_score * 0.05 +
-          dual_motor_score * 0.05 + cybertruck_score * 0.05 + pcs_score * 0.05) >= 60
+    WHEN overall_risk_score >= 60
       THEN 'Monitor closely — multiple subsystems showing degradation'
-    WHEN (battery_score * 0.22 + drivetrain_score * 0.14 + alert_score * 0.15 +
-          low_voltage_score * 0.10 + heat_pump_score * 0.10 + regen_brake_score * 0.07 +
-          suspension_score * 0.04 + air_suspension_score * 0.05 +
-          dual_motor_score * 0.05 + cybertruck_score * 0.05 + pcs_score * 0.05) >= 40
+    WHEN overall_risk_score >= 40
       THEN 'Plan preventive maintenance — emerging wear patterns detected'
     ELSE 'All systems nominal — continue regular monitoring'
   END AS recommended_action,
@@ -508,8 +538,8 @@ SELECT
   vm.battery_type,
   vm.has_heat_pump,
   vm.has_air_suspension
-FROM scores
-LEFT JOIN vehicle_metadata vm ON vm.vin = scores.vin;
+FROM ranked
+LEFT JOIN vehicle_metadata vm ON vm.vin = ranked.vin;
 
 -- ------------------------------------------------------------------
 -- 4.  predictive_health_recommendations  — per-subsystem actions

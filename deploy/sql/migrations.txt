@@ -1,0 +1,80 @@
+# Ordered migration manifest.
+#
+# Files are applied in the order listed here, NOT alphabetically. The
+# numbering is historical and does not match the dependency graph: 014
+# builds predictive_health_summary on top of the air-suspension, dual-motor
+# and Cybertruck diagnostic views created by 015-017, so those must run
+# first. A fresh install driven by filename order fails with "relation
+# air_suspension_diagnostics does not exist".
+#
+# Blank lines and lines starting with # are ignored.
+
+001_schema.sql
+002_views.sql
+003_grafana_role.sql
+004_field_catalog.sql
+
+# Vehicle metadata gates diagnostic applicability from 006 onwards.
+005_vehicle_metadata.sql
+005_predictive_anomalies.sql
+
+006_pcs_diagnostics.sql
+007_heat_pump_diagnostics.sql
+008_low_voltage_diagnostics.sql
+009_battery_health.sql
+010_suspension_diagnostics.sql
+011_drivetrain_diagnostics.sql
+012_alert_parser.sql
+013_regen_brake_diagnostics.sql
+
+# 015-017 before 014: 014 reads air_suspension_diagnostics,
+# dual_motor_diagnostics and cybertruck_diagnostics.
+015_air_suspension_diagnostics.sql
+016_dual_motor_diagnostics.sql
+017_cybertruck_diagnostics.sql
+014_predictive_health.sql
+
+018_telegram_state.sql
+019_user_prefs.sql
+020_sc_feed.sql
+021_energy_price.sql
+022_currency.sql
+023_service_log.sql
+024_service_log_location.sql
+025_pm_review_fixes.sql
+026_telegram_notifications_stable_key.sql
+027_trips_incremental.sql
+028_battery_health_fixes.sql
+029_suspension_summary_fixes.sql
+030_refresh_and_trip_perf.sql
+031_diagnostic_sign_fixes.sql
+032_service_and_heatpump_fixes.sql
+033_brake_estimate_fixes.sql
+034_alert_dedup.sql
+035_charge_sessions_detailed.sql
+036_notify_watchdog.sql
+037_service_intervals.sql
+038_status_dictionary_and_texts.sql
+039_drop_anomaly_layer.sql
+040_matview_refresh.sql
+041_health_matviews.sql
+
+# 042 re-grants grafana_ro on everything above it; objects created later are
+# covered by the default privileges from 003.
+042_roles.sql
+043_vehicle_metadata_override.sql
+044_function_search_path.sql
+045_remove_unsupported_fields.sql
+046_vehicle_state_carry_forward.sql
+047_pcs_requested_current.sql
+048_alert_ack_instances.sql
+049_battery_estimator.sql
+050_isolation_units.sql
+051_health_scoring_v2.sql
+052_dashframe_role.sql
+053_owner_decisions.sql
+054_vin_battery_chemistry.sql
+055_alert_ignore_and_brake_baseline.sql
+056_brake_info_only.sql
+057_packfade_capacity.sql
+058_route_efficiency.sql

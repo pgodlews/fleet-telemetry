@@ -211,12 +211,17 @@ SELECT
   r.n_30d,
   vm.model,
   vm.has_heat_pump,
-  -- Degradation flag: 7-day avg > 15 % above 30-day avg
-  -- while temperature load hasn't shifted by > 3 °C
+  -- Degradation flag: 7-day avg > 15 % above 30-day avg while temperature
+  -- load hasn't shifted by > 3 °C.
+  --
+  -- R2 fix: the previous n_7d floor of 3 was too small to reliably reject
+  -- noise — 3 valid hours could be all from a single drive in unusual
+  -- conditions.  Raised to n_7d >= 8 (≈ a normal week of HVAC use) and
+  -- n_30d >= 24 to keep both windows representative.
   CASE
     WHEN COALESCE(vm.has_heat_pump, FALSE) IS NOT TRUE THEN 'NOT_APPLICABLE'
-    WHEN r.n_7d  >= 3
-     AND r.n_30d >= 10
+    WHEN r.n_7d  >= 8
+     AND r.n_30d >= 24
      AND r.ppd_7d  > 0
      AND r.ppd_30d > 0
      AND r.ppd_7d > r.ppd_30d * 1.15
