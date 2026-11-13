@@ -11,6 +11,11 @@
     "errors":       ["postgres"],
     "connectivity": ["postgres"]
   },
+  "reliable_ack_sources": {
+    "V":      "postgres",
+    "alerts": "postgres",
+    "errors": "postgres"
+  },
   "postgres": {
     "conn_string": "postgres://postgres:<YOUR_POSTGRES_PASSWORD>@timescaledb:5432/tesla?sslmode=disable",
     "max_conns": 16,

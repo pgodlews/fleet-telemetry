@@ -1,19 +1,74 @@
 name: tesla-telemetry
 
+# Secrets have no defaults: `docker compose` refuses to start until they are set
+# in deploy/.env (gitignored). A stack that silently came up with `changeme` /
+# `admin` was the previous behaviour.
+#
+#   POSTGRES_PASSWORD=...        superuser for the database
+#   GF_ADMIN_PASSWORD=...        Grafana admin login
+#   GF_TESLA_DB_PASSWORD=...     password Grafana uses for the grafana_ro role;
+#                                `make migrate` sets the role to this value
+#   PGDATA_DIR=/u01/tesla/pgdata (optional; host directory for the database)
+
+# Every service rotates its json log. tesla-timescaledb alone had grown a
+# 1.2 GB log of continuous-aggregate refresh chatter.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
 services:
   timescaledb:
-    image: timescale/timescaledb-ha:pg16
+    # Pinned: the floating `pg16` tag moves to new TimescaleDB releases on its
+    # own. `-all` keeps the shared libraries of older TimescaleDB versions, so
+    # an existing data directory whose extension is older still loads.
+    image: timescale/timescaledb-ha:pg16.13-ts2.26.4-all
     container_name: tesla-timescaledb
     restart: unless-stopped
+    logging: *default-logging
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
       POSTGRES_DB: tesla
+      # Read by sql/042_roles.sql through `make migrate` / the init script.
+      GRAFANA_RO_PASSWORD: ${GF_TESLA_DB_PASSWORD:?set GF_TESLA_DB_PASSWORD in deploy/.env}
+    # Server settings. Passed as -c flags so they override whatever
+    # postgresql.conf the data directory was initialised with (the image's
+    # timescaledb-tune only runs on a fresh volume).
+    #   * 14 hourly continuous-aggregate policies fire in the same second; with
+    #     max_worker_processes = 8 thousands of job runs failed with "failed to
+    #     start a background worker".
+    #   * shared_buffers / work_mem were the 128 MB / 4 MB defaults.
+    # Override any value from deploy/.env.
+    command:
+      - postgres
+      - -c
+      - max_worker_processes=${PG_MAX_WORKER_PROCESSES:-32}
+      - -c
+      - timescaledb.max_background_workers=${PG_TS_MAX_BACKGROUND_WORKERS:-24}
+      - -c
+      - max_parallel_workers=${PG_MAX_PARALLEL_WORKERS:-4}
+      - -c
+      - max_parallel_workers_per_gather=${PG_MAX_PARALLEL_WORKERS_PER_GATHER:-2}
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-1GB}
+      - -c
+      - work_mem=${PG_WORK_MEM:-16MB}
+      - -c
+      - maintenance_work_mem=${PG_MAINTENANCE_WORK_MEM:-256MB}
+    # Parallel query uses POSIX shared memory in /dev/shm; Docker's 64 MB
+    # default is too small once parallel workers are enabled.
+    shm_size: 256mb
     ports:
       - "127.0.0.1:5432:5432"   # host-local only; WireGuard tunnel or SSH for remote access
     volumes:
-      - /u01/tesla/pgdata:/home/postgres/pgdata/data
-      - ./sql:/docker-entrypoint-initdb.d:ro
+      - ${PGDATA_DIR:-/u01/tesla/pgdata}:/home/postgres/pgdata/data
+      # Migrations are NOT mounted into docker-entrypoint-initdb.d directly:
+      # that applies them in filename order, which is not dependency order
+      # (see sql/migrations.txt). The init script below applies the manifest.
+      - ./sql:/sql:ro
+      - ./sql-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d tesla"]
       interval: 5s
@@ -21,9 +76,11 @@ services:
       retries: 20
 
   grafana:
-    image: grafana/grafana:11.2.0
+    # 11.x; dashboards are schemaVersion 39, which 11.6 reads and migrates.
+    image: grafana/grafana:11.6.16
     container_name: tesla-grafana
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       timescaledb:
         condition: service_healthy
@@ -31,11 +88,11 @@ services:
       - "127.0.0.1:3003:3000"
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:?set GF_ADMIN_PASSWORD in deploy/.env}
       GF_USERS_ALLOW_SIGN_UP: "false"
       # Override these to match your tunnel / direct DB host:
       GF_TESLA_DB_HOST: ${GF_TESLA_DB_HOST:-timescaledb:5432}
-      GF_TESLA_DB_PASSWORD: ${GF_TESLA_DB_PASSWORD:-<YOUR_GRAFANA_DB_PASSWORD>}
+      GF_TESLA_DB_PASSWORD: ${GF_TESLA_DB_PASSWORD:?set GF_TESLA_DB_PASSWORD in deploy/.env}
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
@@ -49,18 +106,58 @@ services:
       dockerfile: deploy/Dockerfile
     container_name: tesla-fleet-telemetry
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       timescaledb:
         condition: service_healthy
     ports:
-      - "4443:4443"   # mTLS WebSocket — Tesla cars connect here
-      - "9090:9090"   # metrics / health
+      - "4443:4443"                # mTLS WebSocket — Tesla cars connect here
+      - "127.0.0.1:9090:9090"      # metrics / health — host-local only, unauthenticated
     volumes:
       - ./fleet-telemetry/config.json:/etc/fleet-telemetry/config.json:ro
       - ./fleet-telemetry/certs:/etc/fleet-telemetry/certs:ro
     environment:
       - CONFIG_FILENAME=/etc/fleet-telemetry/config.json
+    # Process-level: the TLS listener accepts a TCP connection. It does not
+    # prove rows are being written; the notify watchdog and the weekly report
+    # cover that.
+    healthcheck:
+      # Probes the plain-HTTP status port (status_port in config.json), not
+      # 4443: the public listener requires a client certificate, so any probe
+      # of it is logged as a TLS handshake error every interval.
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/$${STATUS_PORT:-8080} &&
+          printf 'GET /status HTTP/1.0\r\n\r\n' >&3 &&
+          head -n 1 <&3 | grep -q ' 200 '
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
+  tesla-notify-daemon:
+    profiles: ["notify"]
+    image: alpine:3.24
+    container_name: tesla-notify-daemon
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    network_mode: host   # needs direct access to localhost:5432
+    volumes:
+      - ./tesla-notify-linux-amd64:/app/tesla-notify:ro
+      - ./notify-config.json:/app/notify-config.json:ro
+      - ${ATTACHMENTS_DIR:-/u01/fleet-telemetry/attachments}:/attachments  # service-log photos — persisted on host
+    command: ["/app/tesla-notify", "--daemon", "--config", "/app/notify-config.json"]
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "/app/tesla-notify"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
 
 volumes:
   grafana_data:

@@ -1,0 +1,11 @@
+[Unit]
+Description=Monday 07:00 UK time Tesla weekly summary
+
+[Timer]
+# Host runs UTC; the explicit zone keeps this at 07:00 local across BST/GMT.
+OnCalendar=Mon *-*-* 07:00:00 Europe/London
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

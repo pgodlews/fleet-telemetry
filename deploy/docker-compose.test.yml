@@ -1,37 +1,67 @@
 name: tesla-telemetry-test
 
 # Test environment for <test-machine> homelab.
-# - TimescaleDB on port 5435 (avoids conflict with production on 5432)
+# - TimescaleDB on port 5435 (avoids conflict with another database on 5432)
 # - Grafana on port 3004
 # - fleet-telemetry on port 4444 (testing only, no mTLS cert required)
 # - Simulator (always on — no profile gate) writing directly to postgres
 #
 # Pre-requisites on <test-machine>:
 #   1. mkdir -p ~/docker/tesla-test/pgdata
-#   2. Place pg_dump snapshot at ~/docker/tesla-test/snapshot.dump
-#   3. docker compose -f docker-compose.test.yml up -d
-#   4. Wait for timescaledb healthy, then restore:
+#   2. docker compose -f docker-compose.test.yml up -d --build
+#      On an empty data directory the init script applies every migration in
+#      sql/migrations.txt (same runner as production).
+#   3. Optional: restore a pg_dump snapshot instead of starting empty:
 #        docker exec tesla-test-timescaledb psql -U postgres -c "SELECT timescaledb_pre_restore();"
-#        docker exec -i tesla-test-timescaledb pg_restore -U postgres -d tesla --no-owner --role=postgres < ~/docker/tesla-test/snapshot.dump
+#        docker exec -i tesla-test-timescaledb pg_restore -U postgres -d tesla --no-owner --role=postgres /tmp/snapshot.dump
 #        docker exec tesla-test-timescaledb psql -U postgres -c "SELECT timescaledb_post_restore();"
-#   5. Run all migrations in order 001-017 if restoring a pre-PM snapshot.
+#      then bring the schema up to date with the manifest runner:
+#        docker exec -e SQL_DIR=/sql tesla-test-timescaledb bash /docker-entrypoint-initdb.d/00_apply_migrations.sh
 #
-# Grafana: http://<test-machine>:3004  (admin / admin)
+# Grafana: http://<test-machine>:3004  (admin / $GF_ADMIN_PASSWORD, default admin)
 # TimescaleDB: psql -h <test-machine> -p 5435 -U postgres -d tesla
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
 
 services:
   timescaledb-test:
-    image: timescale/timescaledb-ha:pg16
+    image: timescale/timescaledb-ha:pg16.13-ts2.26.4-all
     container_name: tesla-test-timescaledb
     restart: unless-stopped
+    logging: *default-logging
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
       POSTGRES_DB: tesla
+      GRAFANA_RO_PASSWORD: ${GF_TESLA_DB_PASSWORD:-grafana_ro}
+    # Same server settings as deploy/docker-compose.yml (see the comments there).
+    command:
+      - postgres
+      - -c
+      - max_worker_processes=${PG_MAX_WORKER_PROCESSES:-32}
+      - -c
+      - timescaledb.max_background_workers=${PG_TS_MAX_BACKGROUND_WORKERS:-24}
+      - -c
+      - max_parallel_workers=${PG_MAX_PARALLEL_WORKERS:-4}
+      - -c
+      - max_parallel_workers_per_gather=${PG_MAX_PARALLEL_WORKERS_PER_GATHER:-2}
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-1GB}
+      - -c
+      - work_mem=${PG_WORK_MEM:-16MB}
+      - -c
+      - maintenance_work_mem=${PG_MAINTENANCE_WORK_MEM:-256MB}
+    shm_size: 256mb
     ports:
       - "127.0.0.1:5435:5432"
     volumes:
       - ${TESLA_TEST_PGDATA:-/home/<your-user>/docker/tesla-test/pgdata}:/home/postgres/pgdata/data
+      - ./sql:/sql:ro
+      - ./sql-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d tesla"]
       interval: 5s
@@ -41,9 +71,10 @@ services:
       - tesla-test
 
   grafana-test:
-    image: grafana/grafana:11.2.0
+    image: grafana/grafana:11.6.16
     container_name: tesla-test-grafana
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       timescaledb-test:
         condition: service_healthy
@@ -70,6 +101,7 @@ services:
       dockerfile: deploy/Dockerfile
     container_name: tesla-test-fleet-telemetry
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       timescaledb-test:
         condition: service_healthy
@@ -85,9 +117,13 @@ services:
       - tesla-test
 
   simulator:
+    build:
+      context: ..
+      dockerfile: tools/simulator/Dockerfile
     image: fleet-telemetry-simulator:latest
     container_name: tesla-test-simulator
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       timescaledb-test:
         condition: service_healthy

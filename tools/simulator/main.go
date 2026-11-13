@@ -65,21 +65,21 @@ type scheduleSegment struct {
 
 // daySchedule holds the pre-computed plan for one 24 h day.
 type daySchedule struct {
-	dayType  string            // "commute" | "idle" | "trip"
+	dayType  string // "commute" | "idle" | "trip"
 	segments []scheduleSegment
 }
 
 // state holds the per-VIN simulation state.
 type state struct {
-	vin         string
-	mode        string    // current mode (may differ from schedule during transitions)
-	modeStarted time.Time // when current mode began
-	soc         float64   // %
-	odo         float64   // km
-	speed       float64   // km/h
-	power       float64   // kW (positive = discharge, negative = charge/regen)
-	headingT    float64   // 0..2π for the location loop
-	lastWritten time.Time // last time we emitted a sample
+	vin          string
+	mode         string    // current mode (may differ from schedule during transitions)
+	modeStarted  time.Time // when current mode began
+	soc          float64   // %
+	odo          float64   // km
+	speed        float64   // km/h
+	power        float64   // kW (positive = discharge, negative = charge/regen)
+	headingT     float64   // 0..2π for the location loop
+	lastWritten  time.Time // last time we emitted a sample
 	lastAdvanced time.Time // last time advance() was called (for energy accounting)
 
 	// Cumulative energy counters (kWh)
@@ -93,27 +93,20 @@ type state struct {
 	motorConfig string // "RWD", "Dual Motor", "Performance", "Tri Motor"
 
 	// Schedule
-	schedule     daySchedule
-	scheduleDay  int // yyyymmdd for which schedule was built
-	rng          *rand.Rand
-	lastSubType  string // sub-type of the last segment we were in
+	schedule    daySchedule
+	scheduleDay int // yyyymmdd for which schedule was built
+	rng         *rand.Rand
+	lastSubType string // sub-type of the last segment we were in
 
-	// Air-suspension state (only used when has_air_suspension = true)
-	suspensionHeightFL   float64 // mm
-	suspensionHeightFR   float64 // mm
-	suspensionHeightRL   float64 // mm
-	suspensionHeightRR   float64 // mm
-	suspensionMode       string  // Standard | Comfort | Sport | OffRoad | Entry
-	compressorState      string  // On | Off
-	compressorCycleCount int     // synthetic counter for failure injection
+	compressorCycleCount int // synthetic counter for failure injection
 
 	// Cybertruck-specific state
-	tonneauOpenPct    float64
-	tonneauPosition   string // Closed | Open | Moving | Stuck
-	tonneauTentMode   string // Off | TentMode
-	powersharePowerKW float64
-	powershareStatus  string // Inactive | Active | Fault
-	powershareType    string // None | HomeBackup | Camp
+	tonneauOpenPct      float64
+	tonneauPosition     string // Closed | Open | Moving | Stuck
+	tonneauTentMode     string // Off | TentMode
+	powersharePowerKW   float64
+	powershareStatus    string // Inactive | Active | Fault
+	powershareType      string // None | HomeBackup | Camp
 	powershareHoursLeft float64
 
 	// Tri-motor state (Cyberbeast only)
@@ -233,7 +226,7 @@ func buildSchedule(vin string, day time.Time) daySchedule {
 		eveningDrive := eveningStart + 15*60 + rng.Intn(45*60)
 		chargeEnd := eveningDrive + 45*60 + rng.Intn(75*60)
 		if chargeEnd > 24*3600 {
-			chargeEnd = 24*3600
+			chargeEnd = 24 * 3600
 		}
 
 		segs = append(segs, scheduleSegment{0, wake, "Sleep", "night"})
@@ -328,7 +321,7 @@ func (ds daySchedule) nextTransition(t time.Time) time.Time {
 		}
 	}
 	// After last segment -> next day first transition
-	return t.Truncate(24*time.Hour).Add(24 * time.Hour)
+	return t.Truncate(24 * time.Hour).Add(24 * time.Hour)
 }
 
 // ------------------------------------------------------------------
@@ -444,9 +437,10 @@ func (s *state) advance(t time.Time) {
 }
 
 // writeIntensity decides how much data to emit for a given timestamp.
-//   "full"    = all curated + fallback fields (driving, charging, transitions)
-//   "medium"  = curated only (parked but awake)
-//   "heartbeat" = tiny subset (asleep)
+//
+//	"full"    = all curated + fallback fields (driving, charging, transitions)
+//	"medium"  = curated only (parked but awake)
+//	"heartbeat" = tiny subset (asleep)
 func (s *state) writeIntensity(t time.Time) string {
 	seg := s.schedule.segmentAt(t)
 	switch seg.mode {
@@ -531,6 +525,10 @@ func (s *state) location() (lng, lat float64) {
 // Sample generation
 // ------------------------------------------------------------------
 
+// kmToMiles converts the simulator's internal metric state to the imperial
+// units the wire fields carry.
+const kmToMiles = 0.621371
+
 // curatedSamples produces the values that drive the dashboards.
 func (s *state) curatedSamples(t time.Time, intensity string) []sample {
 	var out []sample
@@ -539,9 +537,14 @@ func (s *state) curatedSamples(t time.Time, intensity string) []sample {
 	out = append(out,
 		numSamp("BatteryLevel", s.soc),
 		numSamp("Soc", s.soc),
-		numSamp("VehicleSpeed", s.speed),
+		// The internal model is metric (s.speed km/h, s.odo km) but the wire
+		// fields are not: Tesla reports VehicleSpeed in mph and Odometer in
+		// miles, and everything downstream — 013's 50,000-mile brake model,
+		// notify's odometer conversion, the dashboards — reads them that way.
+		// Emitting the metric values unconverted overstated both by 1.61x.
+		numSamp("VehicleSpeed", s.speed*kmToMiles),
 		numSamp("Power", s.power),
-		numSamp("Odometer", s.odo),
+		numSamp("Odometer", s.odo*kmToMiles),
 		strSamp("CarType", s.carType),
 		numSamp("RatedRange", s.soc*4.5),
 		numSamp("EstBatteryRange", s.soc*4.3),
@@ -619,7 +622,7 @@ func (s *state) curatedSamples(t time.Time, intensity string) []sample {
 	// Model-specific fields
 	switch s.model {
 	case "CT":
-		if s.mode == "Parked" && rand.Float64() < 0.05 {
+		if s.mode == "Park" && rand.Float64() < 0.05 {
 			if s.tonneauPosition == "Closed" {
 				s.tonneauPosition = "Open"
 				s.tonneauOpenPct = 100
@@ -628,14 +631,14 @@ func (s *state) curatedSamples(t time.Time, intensity string) []sample {
 				s.tonneauOpenPct = 0
 			}
 		}
-		if s.mode == "Driving" && s.tonneauPosition == "Open" {
+		if s.mode == "Drive" && s.tonneauPosition == "Open" {
 			s.tonneauPosition = "Closed"
 			s.tonneauOpenPct = 0
 		}
-		if s.mode == "Parked" && rand.Float64() < 0.002 {
+		if s.mode == "Park" && rand.Float64() < 0.002 {
 			s.tonneauPosition = "Stuck"
 		}
-		if s.mode == "Parked" && rand.Float64() < 0.10 {
+		if s.mode == "Park" && rand.Float64() < 0.10 {
 			s.powershareStatus = "Active"
 			s.powershareType = "HomeBackup"
 			s.powersharePowerKW = 2.5 + rand.Float64()*3.0
@@ -656,39 +659,11 @@ func (s *state) curatedSamples(t time.Time, intensity string) []sample {
 			strSamp("PowershareType", s.powershareType),
 			numSamp("PowershareHoursLeft", s.powershareHoursLeft),
 		)
-		if s.mode == "Driving" && s.speed > 30 && s.suspensionMode == "Extract" {
-			s.suspensionMode = "Standard"
-		}
 	case "Semi":
 		out = append(out,
 			numSamp("PowershareInstantaneousPowerKW", 0),
 			strSamp("PowershareStatus", "PowershareStatusInactive"),
 			strSamp("PowershareType", "PowershareTypeNone"),
-		)
-	}
-
-	// Air-suspension telemetry
-	if s.model == "S" || s.model == "X" || s.model == "Y" || s.model == "CT" {
-		s.suspensionHeightFL += (rand.Float64() - 0.5) * 0.2
-		s.suspensionHeightFR += (rand.Float64() - 0.5) * 0.2
-		s.suspensionHeightRL += (rand.Float64() - 0.5) * 0.2
-		s.suspensionHeightRR += (rand.Float64() - 0.5) * 0.2
-		for _, h := range []*float64{&s.suspensionHeightFL, &s.suspensionHeightFR, &s.suspensionHeightRL, &s.suspensionHeightRR} {
-			if *h < 135 { *h = 135 }
-			if *h > 155 { *h = 155 }
-		}
-		if s.mode == "Parked" && rand.Float64() < 0.15 {
-			s.compressorState = "On"
-		} else {
-			s.compressorState = "Off"
-		}
-		out = append(out,
-			numSamp("AirSuspensionHeightFL", s.suspensionHeightFL),
-			numSamp("AirSuspensionHeightFR", s.suspensionHeightFR),
-			numSamp("AirSuspensionHeightRL", s.suspensionHeightRL),
-			numSamp("AirSuspensionHeightRR", s.suspensionHeightRR),
-			strSamp("AirSuspensionCompressorState", s.compressorState),
-			strSamp("AirSuspensionMode", s.suspensionMode),
 		)
 	}
 
@@ -707,13 +682,13 @@ func (s *state) curatedSamples(t time.Time, intensity string) []sample {
 		if s.motorConfig == "Performance" || s.motorConfig == "Tri Motor" {
 			perfMult = 1.25
 		}
-		if s.mode == "Driving" {
+		if s.mode == "Drive" {
 			s.accelTorqueF = (180 + rand.Float64()*60) * perfMult
 			s.accelTorqueR = (180 + rand.Float64()*60) * perfMult
 			s.regenTorqueF = (-50 - rand.Float64()*20) * perfMult
 			s.regenTorqueR = (-50 - rand.Float64()*20) * perfMult
 			s.torqueCmd = (220 + rand.Float64()*50) * perfMult
-		} else if s.mode == "Charging" {
+		} else if s.mode == "Charge" {
 			s.accelTorqueF = 0
 			s.accelTorqueR = 0
 			s.regenTorqueF = (-200 - rand.Float64()*50) * perfMult
@@ -731,12 +706,20 @@ func (s *state) curatedSamples(t time.Time, intensity string) []sample {
 		s.vBatF = 300 + s.soc*1.2 + (rand.Float64()-0.5)*4
 		s.vBatR = 300 + s.soc*1.2 + (rand.Float64()-0.5)*4
 		for _, t := range []*float64{&s.invTempF, &s.invTempR} {
-			if *t < 25 { *t = 25 }
-			if *t > 95 { *t = 95 }
+			if *t < 25 {
+				*t = 25
+			}
+			if *t > 95 {
+				*t = 95
+			}
 		}
 		for _, t := range []*float64{&s.statorTempF, &s.statorTempR} {
-			if *t < 35 { *t = 35 }
-			if *t > 130 { *t = 130 }
+			if *t < 35 {
+				*t = 35
+			}
+			if *t > 130 {
+				*t = 130
+			}
 		}
 		out = append(out,
 			numSamp("DiInverterTF", s.invTempF),
@@ -765,12 +748,12 @@ func (s *state) curatedSamples(t time.Time, intensity string) []sample {
 			baseRPM := s.speed * 25.0
 			s.axleSpeedREL = baseRPM + (rand.Float64()-0.5)*3.0
 			s.axleSpeedRER = baseRPM + (rand.Float64()-0.5)*3.0
-			if s.mode == "Driving" {
+			if s.mode == "Drive" {
 				s.accelTorqueREL = (180 + rand.Float64()*60) * 1.25
 				s.accelTorqueRER = (180 + rand.Float64()*60) * 1.25
 				s.regenTorqueREL = (-50 - rand.Float64()*20) * 1.25
 				s.regenTorqueRER = (-50 - rand.Float64()*20) * 1.25
-			} else if s.mode == "Charging" {
+			} else if s.mode == "Charge" {
 				s.accelTorqueREL = 0
 				s.accelTorqueRER = 0
 				s.regenTorqueREL = (-200 - rand.Float64()*50) * 1.25
@@ -786,12 +769,20 @@ func (s *state) curatedSamples(t time.Time, intensity string) []sample {
 			s.vBatREL = 300 + s.soc*1.2 + (rand.Float64()-0.5)*4
 			s.vBatRER = 300 + s.soc*1.2 + (rand.Float64()-0.5)*4
 			for _, t := range []*float64{&s.invTempREL, &s.invTempRER} {
-				if *t < 25 { *t = 25 }
-				if *t > 95 { *t = 95 }
+				if *t < 25 {
+					*t = 25
+				}
+				if *t > 95 {
+					*t = 95
+				}
 			}
 			for _, t := range []*float64{&s.statorTempREL, &s.statorTempRER} {
-				if *t < 35 { *t = 35 }
-				if *t > 130 { *t = 130 }
+				if *t < 35 {
+					*t = 35
+				}
+				if *t > 130 {
+					*t = 130
+				}
 			}
 			out = append(out,
 				numSamp("DiInverterTREL", s.invTempREL),
@@ -1069,24 +1060,16 @@ func main() {
 		m, ct := detectModelFromVin(v)
 		mc := detectMotorConfigFromVin(v)
 		st := &state{
-			vin:         v,
-			mode:        "Sleep",
-			modeStarted: now,
-			soc:         70 + rand.Float64()*20, // start with realistic SoC
-			odo:         50000 + rand.Float64()*10000,
-			model:       m,
-			carType:     ct,
-			motorConfig: mc,
+			vin:          v,
+			mode:         "Sleep",
+			modeStarted:  now,
+			soc:          70 + rand.Float64()*20, // start with realistic SoC
+			odo:          50000 + rand.Float64()*10000,
+			model:        m,
+			carType:      ct,
+			motorConfig:  mc,
 			lastWritten:  time.Time{},
 			lastAdvanced: time.Time{},
-		}
-		if m == "S" || m == "X" || m == "Y" || m == "CT" {
-			st.suspensionHeightFL = 145 + rand.Float64()*2
-			st.suspensionHeightFR = 145 + rand.Float64()*2
-			st.suspensionHeightRL = 145 + rand.Float64()*2
-			st.suspensionHeightRR = 145 + rand.Float64()*2
-			st.suspensionMode = "Standard"
-			st.compressorState = "Off"
 		}
 		if mc != "RWD" {
 			st.invTempF = 45 + rand.Float64()*5

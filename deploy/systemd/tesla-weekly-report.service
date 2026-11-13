@@ -1,0 +1,11 @@
+[Unit]
+Description=Tesla fleet-telemetry weekly health check and driving summary
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# Installed by `make install-timers` with these placeholders filled in.
+User=@USER@
+EnvironmentFile=-/etc/default/tesla-weekly-report
+ExecStart=@REPO@/tools/weekly_report.sh

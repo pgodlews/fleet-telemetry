@@ -1,0 +1,13 @@
+[Unit]
+Description=Tesla telemetry nightly backup (pg_dump + service-log attachments)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# Installed by `make install-timers` with these placeholders filled in.
+User=@USER@
+EnvironmentFile=-/etc/default/tesla-backup
+ExecStart=@REPO@/tools/backup.sh
+Nice=10
+IOSchedulingClass=idle

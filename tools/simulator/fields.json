@@ -1012,7 +1012,7 @@
     "category": "Location",
     "type": "boolean",
     "equiv": "",
-    "desc": "If the vehicle is located at the active driver profile\u2019s saved home location.",
+    "desc": "If the vehicle is located at the active driver profile’s saved home location.",
     "enum": ""
   },
   {
@@ -1020,7 +1020,7 @@
     "category": "Location",
     "type": "boolean",
     "equiv": "",
-    "desc": "If the vehicle is located at the active driver profile\u2019s saved work location.",
+    "desc": "If the vehicle is located at the active driver profile’s saved work location.",
     "enum": ""
   },
   {
@@ -1912,67 +1912,11 @@
     "enum": ""
   },
   {
-    "field": "SteeringAngle",
-    "category": "Drive",
-    "type": "real",
-    "equiv": "vehicle_state.steering_angle",
-    "desc": "Steering wheel angle in degrees. Positive = clockwise, negative = counter-clockwise.",
-    "enum": ""
-  },
-  {
     "field": "LifetimeEnergyGainedRegen",
     "category": "Drive",
     "type": "real",
     "equiv": "drive_state.lifetime_energy_gained_regen",
     "desc": "Total energy recovered from regenerative braking, in kWh.",
     "enum": ""
-  },
-  {
-    "field": "AirSuspensionHeightFL",
-    "category": "Suspension",
-    "type": "real",
-    "equiv": "vehicle_state.air_suspension_height_fl",
-    "desc": "Front left air-suspension ride height in mm above ground.",
-    "enum": ""
-  },
-  {
-    "field": "AirSuspensionHeightFR",
-    "category": "Suspension",
-    "type": "real",
-    "equiv": "vehicle_state.air_suspension_height_fr",
-    "desc": "Front right air-suspension ride height in mm above ground.",
-    "enum": ""
-  },
-  {
-    "field": "AirSuspensionHeightRL",
-    "category": "Suspension",
-    "type": "real",
-    "equiv": "vehicle_state.air_suspension_height_rl",
-    "desc": "Rear left air-suspension ride height in mm above ground.",
-    "enum": ""
-  },
-  {
-    "field": "AirSuspensionHeightRR",
-    "category": "Suspension",
-    "type": "real",
-    "equiv": "vehicle_state.air_suspension_height_rr",
-    "desc": "Rear right air-suspension ride height in mm above ground.",
-    "enum": ""
-  },
-  {
-    "field": "AirSuspensionCompressorState",
-    "category": "Suspension",
-    "type": "string",
-    "equiv": "vehicle_state.air_suspension_compressor_state",
-    "desc": "Air-suspension compressor state.",
-    "enum": "On,Off"
-  },
-  {
-    "field": "AirSuspensionMode",
-    "category": "Suspension",
-    "type": "string",
-    "equiv": "vehicle_state.air_suspension_mode",
-    "desc": "Active air-suspension mode.",
-    "enum": "Standard,Comfort,Sport,OffRoad,Entry"
   }
 ]
