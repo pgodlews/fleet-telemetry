@@ -162,13 +162,44 @@
         "x": 0,
         "y": 6
       },
-      "description": "Combined battery health status. CRITICAL = immediate service.",
+      "description": "Combined battery health status. CRITICAL = immediate service. Fixed in migration 028: max_alert_severity now ranks CRITICAL/URGENT above WARNING (previously alphabetical MAX(severity) could mask a real CRITICAL fault behind an active WARNING), so BATTERY_SERVICE_REQUIRED can now genuinely surface here.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "NORMAL": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "NORMAL"
+                },
+                "BATTERY_IMBALANCE_DETECTED": {
+                  "color": "yellow",
+                  "index": 1,
+                  "text": "IMBALANCE DETECTED"
+                },
+                "BATTERY_CAPACITY_DEGRADED": {
+                  "color": "orange",
+                  "index": 2,
+                  "text": "CAPACITY DEGRADED"
+                },
+                "BATTERY_SERVICE_RECOMMENDED": {
+                  "color": "red",
+                  "index": 3,
+                  "text": "SERVICE RECOMMENDED (URGENT)"
+                },
+                "BATTERY_SERVICE_REQUIRED": {
+                  "color": "dark-red",
+                  "index": 4,
+                  "text": "SERVICE REQUIRED (CRITICAL)"
+                }
+              }
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -230,7 +261,7 @@
         "x": 4,
         "y": 6
       },
-      "description": "% loss of derived full-pack energy since first recorded value.",
+      "description": "% loss of full-pack energy: median of the first k vs. last k weekly full-charge (SOC>=99%) peaks, k = min(3, weeks/2) so the two windows never overlap (049). This full-charge estimator is the headline and is what the predictive-health battery score uses.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -298,7 +329,7 @@
         "x": 9,
         "y": 6
       },
-      "description": "% loss of ideal range since first recorded value.",
+      "description": "% loss of ideal range from the same weekly full-charge peaks and windows as Capacity Degradation (049).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -366,7 +397,7 @@
         "x": 14,
         "y": 6
       },
-      "description": "Number of currently active battery-related alerts.",
+      "description": "Number of distinct currently-active battery alert codes (migration 028 fix #2: was COUNT(*) over alert sample rows, e.g. 802 on prod for 3 real alerts — thresholds below were already tuned for a small distinct-code count).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -434,7 +465,7 @@
         "x": 19,
         "y": 6
       },
-      "description": "Max brick voltage imbalance from yesterday (V). >0.5 V = significant.",
+      "description": "Largest BrickVoltageMax − BrickVoltageMin from the same payload on the last day (V). Since 046 both values come from one timestamp; the old hourly max−min mixed moments and read about 3x higher. >0.5 V = significant.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -503,7 +534,7 @@
     {
       "id": null,
       "type": "timeseries",
-      "title": "Derived Capacity (kWh)",
+      "title": "Rest-hour Capacity Estimate (secondary)",
       "datasource": {
         "type": "postgres",
         "uid": "tesla_timescaledb"
@@ -514,7 +545,7 @@
         "x": 0,
         "y": 11
       },
-      "description": "Full-pack energy derived from EnergyRemaining / BatteryLevel. Taken during rest hours for stability.",
+      "description": "SECONDARY estimator: EnergyRemaining / BatteryLevel during rest hours (battery_health_diagnostics). Noisier and SOC-dependent; shown for context. The headline capacity and the health score use the weekly full-charge estimator (see 'Weekly Full-Charge Peak').",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -578,7 +609,7 @@
             "type": "postgres",
             "uid": "tesla_timescaledb"
           },
-          "rawSql": "SELECT ts AS time, derived_capacity_kwh AS \"Derived capacity (kWh)\", capacity_30d_avg AS \"30-day avg\", capacity_90d_avg AS \"90-day avg\" FROM battery_health_diagnostics WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts",
+          "rawSql": "SELECT ts AS time, derived_capacity_kwh AS \"Rest-hour estimate (kWh)\", capacity_30d_avg AS \"Rest-hour 30-day avg\", capacity_90d_avg AS \"Rest-hour 90-day avg\" FROM battery_health_diagnostics WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts",
           "format": "time_series"
         }
       ]
@@ -586,7 +617,7 @@
     {
       "id": null,
       "type": "timeseries",
-      "title": "Degradation %",
+      "title": "Degradation % — full-charge (headline) vs rest-hour",
       "datasource": {
         "type": "postgres",
         "uid": "tesla_timescaledb"
@@ -597,7 +628,7 @@
         "x": 12,
         "y": 11
       },
-      "description": "Degradation since baseline. Industry-standard end-of-life = 20 % (Tesla warranty = 30 % at 8 years).",
+      "description": "Full-charge capacity %: trailing 3-week median of the weekly full-charge peak against the first-weeks baseline (battery_full_charge_trend, 049) — the same estimator as the headline and the health score. Rest-hour %: the older rest-block estimator (battery_health_diagnostics), kept for comparison.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -669,8 +700,18 @@
             "type": "postgres",
             "uid": "tesla_timescaledb"
           },
-          "rawSql": "SELECT ts AS time, capacity_degradation_pct AS \"Capacity %\", ideal_range_degradation_pct AS \"Ideal range %\", rated_range_degradation_pct AS \"Rated range %\" FROM battery_health_diagnostics WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts",
-          "format": "time_series"
+          "rawSql": "SELECT ts AS time, capacity_degradation_pct AS \"Full-charge capacity % (headline)\" FROM battery_full_charge_trend WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts",
+          "format": "time_series",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT ts AS time, capacity_degradation_pct AS \"Rest-hour capacity % (secondary)\", ideal_range_degradation_pct AS \"Rest-hour ideal range %\" FROM battery_health_diagnostics WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts",
+          "format": "time_series",
+          "refId": "B"
         }
       ]
     },
@@ -700,7 +741,7 @@
         "x": 0,
         "y": 20
       },
-      "description": "Difference between highest and lowest brick voltages. Growing delta indicates cell imbalance.",
+      "description": "Daily max BrickVoltageMax − BrickVoltageMin from samples with the same timestamp (046). Growing delta indicates cell imbalance; LFP packs show a wider spread near full or empty.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -950,7 +991,7 @@
         "x": 12,
         "y": 29
       },
-      "description": "High-quality capacity readings captured after 4+ hours of thermal rest.",
+      "description": "High-quality capacity readings captured after 4+ hours of thermal rest. Migration 028: Derived capacity (kWh) is now blank for blocks below 80% SOC (the ratio is unreliable there); Ideal range (mi) is still shown raw and unnormalised for SOC, so compare rows at similar SOC % only.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -997,6 +1038,640 @@
           },
           "rawSql": "SELECT ts AS \"Rest end\", block_hours AS \"Rest hours\", derived_capacity_kwh AS \"Derived capacity (kWh)\", battery_level AS \"SOC %\", ideal_range AS \"Ideal range (mi)\" FROM battery_rest_capacity WHERE vin = '$vin' ORDER BY ts DESC LIMIT 50",
           "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "row",
+      "title": "🔌 Full-Charge Capacity Trend (new in migration 028)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "collapsed": false
+    },
+    {
+      "id": null,
+      "type": "timeseries",
+      "title": "Weekly Full-Charge Peak (SOC >= 99%)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 38
+      },
+      "description": "One best-calibrated full-charge sample per week (battery_full_charge_weekly, migration 028 fix #6) — the trustworthy capacity/range signal behind the Capacity/Range Degradation stats above, since it bypasses the SOC-scaling artifact in the rest-block-derived series entirely. `n` (samples that week) is in the tooltip; a week with very few full charges makes that week's point less reliable. This is the headline estimator.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisColorMode": "text",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "kwatt"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/range/i"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthmi"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "first",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT week AS time, energy_kwh AS \"Full-charge energy (kWh)\", rated_range AS \"Rated range (mi)\", n AS \"Samples this week\" FROM battery_full_charge_weekly WHERE vin = '$vin' AND $__timeFilter(week) ORDER BY week",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "row",
+      "title": "🧪 Experimental — Packfade method (capacity fade from drives)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 46
+      },
+      "panels": [],
+      "description": "EXPERIMENTAL. Method adapted from Packfade (https://github.com/pgodlews/packfade, MIT licence) by the same author."
+    },
+    {
+      "id": null,
+      "type": "text",
+      "title": "About this experimental estimate",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 47
+      },
+      "description": "EXPERIMENTAL. Method adapted from Packfade (https://github.com/pgodlews/packfade, MIT licence) by the same author.",
+      "options": {
+        "mode": "markdown",
+        "content": "**Experimental.** For each drive: energy that left the pack (pack voltage × current, integrated) ÷ share of SOC used = apparent capacity. A robust log-linear trend through those drives (temperature-adjusted, Huber-weighted, day-clustered bootstrap) gives the index.\n\nRelies on the BMS SOC (LFP drift between full charges); 30 s current sampling; not a capacity test; not in the health score.\n\nMethod adapted from [Packfade](https://github.com/pgodlews/packfade) (MIT) by the same author."
+      }
+    },
+    {
+      "id": null,
+      "type": "stat",
+      "title": "Reading (plain words)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 47
+      },
+      "description": "EXPERIMENTAL. Plain-words reading of the latest estimate: whether the 95 % interval of the fade rate excludes zero. 'Not yet distinguishable from no fade' means the data cannot tell fade from none yet. Method adapted from Packfade (https://github.com/pgodlews/packfade, MIT licence) by the same author.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "",
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT message FROM packfade_estimate WHERE vin = '$vin' AND variant = 'all' ORDER BY computed_at DESC LIMIT 1",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "stat",
+      "title": "Apparent capacity index",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 12,
+        "y": 47
+      },
+      "description": "EXPERIMENTAL. Fitted apparent capacity at the latest used drive as % of the fitted capacity at the first used drive, at reference conditions (mean temperature), with the 95 % date-clustered bootstrap interval. It measures energy out per % SOC from drives, not a capacity test. Limits: it relies on the BMS state of charge, which on an LFP pack drifts between full charges; pack current and voltage are sampled every 30 s, so short peaks are missed; drives with less than 5 % SOC used are not used. It is an apparent capacity index, not a capacity test, and is not part of the health score. Method adapted from Packfade (https://github.com/pgodlews/packfade, MIT licence) by the same author.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percent",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT index_pct AS \"Index\", concat(round(index_lo_pct::numeric, 1), ' – ', round(index_hi_pct::numeric, 1), ' %') AS \"95 % interval\" FROM packfade_estimate WHERE vin = '$vin' AND variant = 'all' ORDER BY computed_at DESC LIMIT 1",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "stat",
+      "title": "Fade rate",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 16,
+        "y": 47
+      },
+      "description": "EXPERIMENTAL. Fitted fade per year of calendar time (positive = apparent capacity falling) with its 95 % bootstrap interval. Over a few months of data the interval is wide; read it before the point value. Limits: it relies on the BMS state of charge, which on an LFP pack drifts between full charges; pack current and voltage are sampled every 30 s, so short peaks are missed; drives with less than 5 % SOC used are not used. It is an apparent capacity index, not a capacity test, and is not part of the health score. Method adapted from Packfade (https://github.com/pgodlews/packfade, MIT licence) by the same author.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT fade_pct_per_year AS \"Fade %/year\", concat(round(fade_lo_pct_per_year::numeric, 1), ' to ', round(fade_hi_pct_per_year::numeric, 1), ' %/yr') AS \"95 % interval\" FROM packfade_estimate WHERE vin = '$vin' AND variant = 'all' ORDER BY computed_at DESC LIMIT 1",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "stat",
+      "title": "Observations",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 47
+      },
+      "description": "EXPERIMENTAL. Drives used by the fit and drives rejected (charging inside the drive, less than 90 % power-sample coverage, under 5 % SOC used, no temperature). Below 15 drives on 8 days over 90 days the estimate reports insufficient data. 'Now' is on the V×I energy scale, which reads lower than the BMS energy figures. Method adapted from Packfade (https://github.com/pgodlews/packfade, MIT licence) by the same author.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": ""
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT concat(n_used, ' used / ', n_rejected, ' rejected') AS \"Drives\", concat(n_days, ' days, ', round(span_days::numeric), '-day span') AS \"Span\", capacity_now_kwh AS \"Now (kWh, V×I scale)\" FROM packfade_estimate WHERE vin = '$vin' AND variant = 'all' ORDER BY computed_at DESC LIMIT 1",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "timeseries",
+      "title": "Per-drive apparent capacity (normalised) with fitted trend — experimental",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "description": "EXPERIMENTAL. Points: each used drive's apparent capacity (pack energy out ÷ share of SOC used), adjusted to the mean outside temperature. Line: fitted log-linear trend; shaded: pointwise 95 % date-clustered bootstrap band. Dashed: the BMS weekly full-charge energy for comparison only — it is on the BMS scale, which reads several % higher than the V×I integral, so compare slopes, not levels. Limits: it relies on the BMS state of charge, which on an LFP pack drifts between full charges; pack current and voltage are sampled every 30 s, so short peaks are missed; drives with less than 5 % SOC used are not used. It is an apparent capacity index, not a capacity test, and is not part of the health score. Method adapted from Packfade (https://github.com/pgodlews/packfade, MIT licence) by the same author.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "pointSize": 6,
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisLabel": "kWh"
+          },
+          "unit": "kwatth",
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Drive (normalised)"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "points"
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "always"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Fitted trend"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "95 % band high"
+            },
+            "properties": [
+              {
+                "id": "custom.fillBelowTo",
+                "value": "95 % band low"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 20
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "95 % band low"
+            },
+            "properties": [
+              {
+                "id": "custom.lineWidth",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "BMS full-charge energy (comparison)"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "always"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT seg_start AS time, normalised_capacity_kwh AS \"Drive (normalised)\" FROM packfade_points WHERE vin = '$vin' AND used ORDER BY seg_start"
+        },
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT ts AS time, fitted_kwh AS \"Fitted trend\", lo_kwh AS \"95 % band low\", hi_kwh AS \"95 % band high\" FROM packfade_curve WHERE vin = '$vin' ORDER BY ts"
+        },
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "refId": "C",
+          "format": "time_series",
+          "rawSql": "SELECT ts AS time, energy_kwh AS \"BMS full-charge energy (comparison)\" FROM battery_full_charge_trend WHERE vin = '$vin' ORDER BY ts"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "table",
+      "title": "Estimates by variant — experimental",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 62
+      },
+      "description": "EXPERIMENTAL. Latest estimate for each variant: 'all' uses every eligible drive; 'calibrated_start' only drives that began within 24 h of a charge to 99 % or more (the LFP SOC estimate is best right after a full charge). Fewer drives, so a wider interval. Method adapted from Packfade (https://github.com/pgodlews/packfade, MIT licence) by the same author.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "format": "table",
+          "rawSql": "SELECT DISTINCT ON (variant) variant AS \"Variant\", status AS \"Status\", n_used AS \"Drives used\", n_days AS \"Days\", index_pct AS \"Index %\", index_lo_pct AS \"Index low\", index_hi_pct AS \"Index high\", fade_pct_per_year AS \"Fade %/yr\", fade_lo_pct_per_year AS \"Fade low\", fade_hi_pct_per_year AS \"Fade high\", temp_effect_pct_per_10c AS \"Temp effect %/10°C\", computed_at AS \"Computed\" FROM packfade_estimate WHERE vin = '$vin' ORDER BY variant, computed_at DESC"
         }
       ]
     }

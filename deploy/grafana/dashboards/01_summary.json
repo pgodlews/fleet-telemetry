@@ -57,6 +57,19 @@
         },
         "query": "SELECT CASE WHEN '$units_override'='metric' THEN 'metric' WHEN '$units_override'='imperial' THEN 'imperial' WHEN '$distance_unit'='DistanceUnitMiles' THEN 'imperial' ELSE 'metric' END",
         "refresh": 2
+      },
+      {
+        "name": "speed_unit",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "postgres",
+          "uid": "tesla_timescaledb"
+        },
+        "query": "SELECT CASE WHEN '$units_effective'='imperial' THEN 'mph' ELSE 'km/h' END",
+        "refresh": 2,
+        "label": "speed unit",
+        "options": []
       }
     ]
   },
@@ -329,8 +342,9 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "velocitykmh",
-          "decimals": 0
+          "unit": "none",
+          "decimals": 0,
+          "displayName": "Speed (${speed_unit})"
         }
       },
       "options": {
@@ -457,16 +471,16 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "speed_kmh"
+              "options": "speed"
             },
             "properties": [
               {
                 "id": "displayName",
-                "value": "Speed (km/h)"
+                "value": "Speed (${speed_unit})"
               },
               {
                 "id": "unit",
-                "value": "velocitykmh"
+                "value": "none"
               },
               {
                 "id": "custom.axisPlacement",
@@ -506,7 +520,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT ts AS time, num_value * 1.60934 AS speed_kmh\nFROM telemetry\nWHERE field='VehicleSpeed' AND vin='$vin' AND $__timeFilter(ts)\nORDER BY ts"
+          "rawSql": "SELECT ts AS time, CASE WHEN '$units_effective'='imperial' THEN num_value ELSE num_value * 1.60934 END AS speed\nFROM telemetry\nWHERE field='VehicleSpeed' AND vin='$vin' AND $__timeFilter(ts)\nORDER BY ts"
         },
         {
           "refId": "B",

@@ -666,7 +666,7 @@
         "x": 0,
         "y": 20
       },
-      "description": "Full parsed alerts with telemetry context at time of alert.",
+      "description": "Full parsed alerts with telemetry context at time of alert. Ignored = the code is ignored for this vehicle (pm_alert_ignore); such alerts are never active.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -711,7 +711,7 @@
             "type": "postgres",
             "uid": "tesla_timescaledb"
           },
-          "rawSql": "SELECT ts AS \"Alert time\", alert_code AS \"Code\", severity AS \"Severity\", subsystem AS \"Subsystem\", description AS \"Description\", is_active AS \"Active\", COALESCE(vehicle_speed_at_alert::text, '-') AS \"Speed\", COALESCE(charge_state_at_alert, '-') AS \"Charge\", COALESCE(battery_level_at_alert::text, '-') AS \"SOC %\" FROM parsed_alerts WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts DESC LIMIT 200",
+          "rawSql": "SELECT ts AS \"Alert time\", alert_code AS \"Code\", severity AS \"Severity\", subsystem AS \"Subsystem\", description AS \"Description\", is_active AS \"Active\", alert_is_ignored(vin, alert_code) AS \"Ignored\", COALESCE(vehicle_speed_at_alert::text, '-') AS \"Speed\", COALESCE(charge_state_at_alert, '-') AS \"Charge\", COALESCE(battery_level_at_alert::text, '-') AS \"SOC %\" FROM parsed_alerts WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts DESC LIMIT 200",
           "format": "table"
         }
       ]
@@ -775,7 +775,7 @@
             "type": "postgres",
             "uid": "tesla_timescaledb"
           },
-          "rawSql": "SELECT alert_code AS \"Code\", severity AS \"Severity\", subsystem AS \"Subsystem\", first_seen AS \"First seen\", last_seen AS \"Last seen\", recurrence_count AS \"Count\", active_count AS \"Active now\", LEFT(description, 80) AS \"Description\" FROM alert_history_summary WHERE vin = '$vin' ORDER BY CASE severity WHEN 'CRITICAL' THEN 1 WHEN 'URGENT' THEN 2 WHEN 'WARNING' THEN 3 ELSE 4 END, recurrence_count DESC",
+          "rawSql": "SELECT alert_code AS \"Code\", severity AS \"Severity\", subsystem AS \"Subsystem\", first_seen AS \"First seen\", last_seen AS \"Last seen\", recurrence_count AS \"Count\", active_count AS \"Active now\", alert_is_ignored(vin, alert_code) AS \"Ignored\", LEFT(description, 80) AS \"Description\" FROM alert_history_summary WHERE vin = '$vin' ORDER BY CASE severity WHEN 'CRITICAL' THEN 1 WHEN 'URGENT' THEN 2 WHEN 'WARNING' THEN 3 ELSE 4 END, recurrence_count DESC",
           "format": "table"
         }
       ]

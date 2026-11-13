@@ -169,7 +169,7 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "AC Energy In (30d)",
+      "title": "Drawn from AC supply (30d)",
       "datasource": {
         "type": "postgres",
         "uid": "tesla_timescaledb"
@@ -194,15 +194,15 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COALESCE(SUM(GREATEST(0, delta)), 0) AS kwh\nFROM (\n  SELECT num_value - LAG(num_value) OVER (ORDER BY ts) AS delta\n  FROM telemetry\n  WHERE field='ACChargingEnergyIn' AND vin='$vin' AND ts > NOW() - INTERVAL '30 days'\n) d"
+          "rawSql": "WITH vals AS (\n  SELECT num_value, LAG(num_value) OVER (ORDER BY ts) AS prev\n  FROM telemetry\n  WHERE field = 'ACChargingEnergyIn' AND vin = '$vin' AND ts > NOW() - INTERVAL '30 days' AND num_value IS NOT NULL\n)\n-- per-session counter: a fall below half the previous value is a new session,\n-- a smaller dip is parked drift and adds nothing\nSELECT COALESCE(SUM(CASE WHEN prev IS NULL THEN 0\n                         WHEN num_value < prev * 0.5 THEN num_value\n                         WHEN num_value < prev THEN 0\n                         ELSE num_value - prev END), 0) AS kwh\nFROM vals"
         }
       ],
-      "description": "Total AC charging energy added over the last 30 days."
+      "description": "ACChargingEnergyIn: energy taken from AC supplies (wall box, outlet) at the onboard charger's input. Not counted for DC fast charging."
     },
     {
       "id": 2,
       "type": "stat",
-      "title": "DC Energy In (30d)",
+      "title": "Into battery (30d)",
       "datasource": {
         "type": "postgres",
         "uid": "tesla_timescaledb"
@@ -227,16 +227,16 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COALESCE(SUM(GREATEST(0, delta)), 0) AS kwh\nFROM (\n  SELECT num_value - LAG(num_value) OVER (ORDER BY ts) AS delta\n  FROM telemetry\n  WHERE field='DCChargingEnergyIn' AND vin='$vin' AND ts > NOW() - INTERVAL '30 days'\n) d"
+          "rawSql": "WITH vals AS (\n  SELECT num_value, LAG(num_value) OVER (ORDER BY ts) AS prev\n  FROM telemetry\n  WHERE field = 'DCChargingEnergyIn' AND vin = '$vin' AND ts > NOW() - INTERVAL '30 days' AND num_value IS NOT NULL\n)\n-- per-session counter: a fall below half the previous value is a new session,\n-- a smaller dip is parked drift and adds nothing\nSELECT COALESCE(SUM(CASE WHEN prev IS NULL THEN 0\n                         WHEN num_value < prev * 0.5 THEN num_value\n                         WHEN num_value < prev THEN 0\n                         ELSE num_value - prev END), 0) AS kwh\nFROM vals"
         }
       ],
-      "description": "Total DC fast-charging energy added over the last 30 days."
+      "description": "DCChargingEnergyIn: energy delivered into the battery by any charger — the onboard charger during AC charging and the station during DC fast charging. In an AC session this is the AC supply figure minus the charger loss."
     },
     {
       "id": 3,
       "type": "stat",
-      "title": "Regen (derived, 30d)",
-      "description": "Regen kWh = ∫ max(0, -Power) dt. No dedicated regen field is streamed.",
+      "title": "Regen while driving (30d)",
+      "description": "Energy returned to the pack while driving: positive pack power (PackVoltage × PackCurrent, 1-minute averages) inside trips, integrated over the real time between samples. Charging is excluded because it never happens inside a trip.",
       "datasource": {
         "type": "postgres",
         "uid": "tesla_timescaledb"
@@ -261,14 +261,14 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COALESCE(SUM(GREATEST(0, -power_kw)) * 30.0/3600.0, 0) AS kwh\nFROM (\n  SELECT time_bucket('30s', v.ts) AS b,\n    AVG(v.num_value) * AVG(i.num_value) / 1000 AS power_kw\n  FROM telemetry v\n  JOIN telemetry i ON time_bucket('30s', v.ts) = time_bucket('30s', i.ts) AND v.vin = i.vin\n  WHERE v.field='PackVoltage' AND i.field='PackCurrent'\n    AND v.vin='$vin' AND v.ts > NOW() - INTERVAL '30 days'\n  GROUP BY 1\n) p"
+          "rawSql": "WITH m AS (\n  -- per-minute pack power from the 1-minute aggregate; + = into the battery\n  SELECT v.bucket, v.avg_v * i.avg_v / 1000.0 AS kw\n  FROM telemetry_1m v\n  JOIN telemetry_1m i ON i.vin = v.vin AND i.bucket = v.bucket AND i.field = 'PackCurrent'\n  WHERE v.vin = '$vin' AND v.field = 'PackVoltage' AND v.bucket > NOW() - INTERVAL '30 days'\n), d AS (\n  -- each minute weighs the real time until the next sample, at most 5 min\n  SELECT bucket, kw,\n         LEAST(EXTRACT(EPOCH FROM (LEAD(bucket) OVER (ORDER BY bucket) - bucket)), 300) / 3600.0 AS h\n  FROM m\n), drv AS (\n  SELECT d.* FROM d\n  WHERE EXISTS (SELECT 1 FROM trips t WHERE t.vin = '$vin'\n                  AND d.bucket >= date_trunc('minute', t.started) AND d.bucket <= t.ended)\n)\nSELECT COALESCE(SUM(GREATEST(0, kw) * h), 0) AS kwh FROM drv"
         }
       ]
     },
     {
       "id": 4,
       "type": "stat",
-      "title": "Drive Energy (derived, 30d)",
+      "title": "Drive energy out of pack (30d)",
       "datasource": {
         "type": "postgres",
         "uid": "tesla_timescaledb"
@@ -293,10 +293,10 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COALESCE(SUM(GREATEST(0, power_kw)) * 30.0/3600.0, 0) AS kwh\nFROM (\n  SELECT time_bucket('30s', v.ts) AS b,\n    AVG(v.num_value) * AVG(i.num_value) / 1000 AS power_kw\n  FROM telemetry v\n  JOIN telemetry i ON time_bucket('30s', v.ts) = time_bucket('30s', i.ts) AND v.vin = i.vin\n  WHERE v.field='PackVoltage' AND i.field='PackCurrent'\n    AND v.vin='$vin' AND v.ts > NOW() - INTERVAL '30 days'\n  GROUP BY 1\n) p"
+          "rawSql": "WITH m AS (\n  -- per-minute pack power from the 1-minute aggregate; + = into the battery\n  SELECT v.bucket, v.avg_v * i.avg_v / 1000.0 AS kw\n  FROM telemetry_1m v\n  JOIN telemetry_1m i ON i.vin = v.vin AND i.bucket = v.bucket AND i.field = 'PackCurrent'\n  WHERE v.vin = '$vin' AND v.field = 'PackVoltage' AND v.bucket > NOW() - INTERVAL '30 days'\n), d AS (\n  -- each minute weighs the real time until the next sample, at most 5 min\n  SELECT bucket, kw,\n         LEAST(EXTRACT(EPOCH FROM (LEAD(bucket) OVER (ORDER BY bucket) - bucket)), 300) / 3600.0 AS h\n  FROM m\n), drv AS (\n  SELECT d.* FROM d\n  WHERE EXISTS (SELECT 1 FROM trips t WHERE t.vin = '$vin'\n                  AND d.bucket >= date_trunc('minute', t.started) AND d.bucket <= t.ended)\n)\nSELECT COALESCE(SUM(GREATEST(0, -kw) * h), 0) AS kwh FROM drv"
         }
       ],
-      "description": "Estimated drive energy consumed over the last 30 days, derived from pack power."
+      "description": "Gross energy taken from the pack while driving (negative pack power inside trips), integrated over real elapsed time; parked loads are excluded. Drive energy minus regen is close to the trips view's kwh_used (55.2 vs 58.9 kWh over 30 days on the production data when this was written)."
     },
     {
       "id": 5,
@@ -356,7 +356,7 @@
           "rawSql": "SELECT\n  v.bucket AS time,\n  v.avg_v * i.avg_v / 1000 AS power_kw\nFROM telemetry_1m v\nJOIN telemetry_1m i ON v.bucket = i.bucket AND v.vin = i.vin\nWHERE v.field='PackVoltage' AND i.field='PackCurrent'\n  AND v.vin='$vin' AND $__timeFilter(v.bucket)\nORDER BY 1"
         }
       ],
-      "description": "Battery power over time, calculated from pack voltage × pack current."
+      "description": "Pack power from 1-minute averages: positive = into the battery (charging, regen), negative = out of the battery (driving, parked loads)."
     },
     {
       "id": 7,
@@ -392,7 +392,7 @@
       "id": 8,
       "type": "xychart",
       "title": "Charge Curve (Power vs SoC, last 7d)",
-      "description": "Pairs Power and BatteryLevel within each charge session — typical fast-charge taper.",
+      "description": "Charging power (positive pack power above 1 kW outside trips) against state of charge, 1-minute averages, last 7 days.",
       "datasource": {
         "type": "postgres",
         "uid": "tesla_timescaledb"
@@ -419,7 +419,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "WITH soc AS (\n  SELECT time_bucket('1 minute', ts) AS m, AVG(num_value) AS soc\n  FROM telemetry WHERE vin='$vin' AND field='BatteryLevel' AND ts > NOW() - INTERVAL '7 days'\n  GROUP BY 1\n),\npwr AS (\n  SELECT time_bucket('1 minute', v.ts) AS m, AVG(v.num_value)*AVG(i.num_value)/1000 AS kw\n  FROM telemetry v\n  JOIN telemetry i ON time_bucket('1 minute', v.ts)=time_bucket('1 minute',i.ts) AND v.vin=i.vin\n  WHERE v.field='PackVoltage' AND i.field='PackCurrent'\n    AND v.vin='$vin' AND v.ts > NOW() - INTERVAL '7 days'\n  GROUP BY 1\n  HAVING AVG(v.num_value)*AVG(i.num_value)/1000 < -1\n)\nSELECT s.soc, ABS(p.kw) AS power_kw FROM soc s JOIN pwr p ON s.m=p.m ORDER BY s.soc"
+          "rawSql": "WITH pw AS (\n  SELECT v.bucket, v.avg_v * i.avg_v / 1000.0 AS kw\n  FROM telemetry_1m v\n  JOIN telemetry_1m i ON i.vin = v.vin AND i.bucket = v.bucket AND i.field = 'PackCurrent'\n  WHERE v.vin = '$vin' AND v.field = 'PackVoltage' AND v.bucket > NOW() - INTERVAL '7 days'\n)\nSELECT s.avg_v AS soc, pw.kw AS power_kw\nFROM pw\nJOIN telemetry_1m s ON s.vin = '$vin' AND s.bucket = pw.bucket AND s.field = 'BatteryLevel'\nWHERE pw.kw > 1\n  AND NOT EXISTS (SELECT 1 FROM trips t WHERE t.vin = '$vin' AND pw.bucket >= date_trunc('minute', t.started) AND pw.bucket <= t.ended)\nORDER BY 1"
         }
       ]
     },
@@ -451,10 +451,10 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "WITH p AS (\n  SELECT time_bucket('1 minute', v.ts) AS m,\n    AVG(v.num_value)*AVG(i.num_value)/1000 AS power_kw\n  FROM telemetry v\n  JOIN telemetry i ON time_bucket('1 minute',v.ts)=time_bucket('1 minute',i.ts) AND v.vin=i.vin\n  WHERE v.field='PackVoltage' AND i.field='PackCurrent'\n    AND v.vin='$vin' AND v.ts > NOW() - INTERVAL '30 days'\n  GROUP BY 1\n),\ns AS (\n  SELECT time_bucket('1 minute', ts) AS m, AVG(num_value) AS mph\n  FROM telemetry WHERE vin='$vin' AND field='VehicleSpeed'\n    AND ts > NOW() - INTERVAL '30 days' GROUP BY 1\n)\nSELECT\n  width_bucket(s.mph, 0, 80, 8)*10 AS speed_mph_bucket,\n  AVG(GREATEST(0,p.power_kw)/NULLIF(s.mph*1.609,0)*1000) AS wh_per_km\nFROM p JOIN s ON p.m=s.m WHERE s.mph > 5\nGROUP BY 1 ORDER BY 1"
+          "rawSql": "WITH pw AS (\n  SELECT v.bucket, v.avg_v * i.avg_v / 1000.0 AS kw\n  FROM telemetry_1m v\n  JOIN telemetry_1m i ON i.vin = v.vin AND i.bucket = v.bucket AND i.field = 'PackCurrent'\n  WHERE v.vin = '$vin' AND v.field = 'PackVoltage' AND v.bucket > NOW() - INTERVAL '30 days'\n), s AS (\n  SELECT bucket, avg_v AS mph FROM telemetry_1m\n  WHERE vin = '$vin' AND field = 'VehicleSpeed' AND bucket > NOW() - INTERVAL '30 days' AND avg_v > 0\n)\n-- net consumption (out minus regen) per km, by speed band\nSELECT width_bucket(s.mph, 0, 80, 8) * 10 AS speed_mph_bucket,\n       SUM(-pw.kw) / NULLIF(SUM(s.mph * 1.609344), 0) * 1000 AS wh_per_km\nFROM pw JOIN s ON s.bucket = pw.bucket\nGROUP BY 1 ORDER BY 1"
         }
       ],
-      "description": "Average energy consumption grouped by 10 mph speed buckets over the last 30 days."
+      "description": "Net energy per km (pack discharge minus regen, 1-minute averages) for minutes in each speed band, last 30 days."
     },
     {
       "id": 10,
@@ -505,10 +505,10 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT time_bucket('1 hour', v.ts) AS time,\n  GREATEST(0, AVG(v.num_value)*AVG(i.num_value)/1000) AS power_kw\nFROM telemetry v\nJOIN telemetry i ON time_bucket('30s',v.ts)=time_bucket('30s',i.ts) AND v.vin=i.vin\nWHERE v.field='PackVoltage' AND i.field='PackCurrent'\n  AND v.vin='$vin' AND v.ts > NOW() - INTERVAL '14 days'\nGROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT time_bucket('1 hour', v.bucket) AS time,\n       GREATEST(0, -AVG(v.avg_v * i.avg_v) / 1000.0) AS power_kw\nFROM telemetry_1m v\nJOIN telemetry_1m i ON i.vin = v.vin AND i.bucket = v.bucket AND i.field = 'PackCurrent'\nWHERE v.vin = '$vin' AND v.field = 'PackVoltage' AND v.bucket > NOW() - INTERVAL '14 days'\nGROUP BY 1\nORDER BY 1"
         }
       ],
-      "description": "Heatmap of average drive power by hour of day over the last 14 days."
+      "description": "Average pack discharge power per hour (1-minute aggregates; negative pack power = out of the battery), last 14 days."
     },
     {
       "id": 12,

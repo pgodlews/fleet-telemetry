@@ -471,7 +471,7 @@
             "type": "postgres",
             "uid": "tesla_timescaledb"
           },
-          "rawSql": "SELECT \n  $__timeGroup(ts, '1m') as time,\n  MAX(CASE WHEN str_value='DefrostModeStateOff' THEN 0 ELSE 1 END) as \"Front Defrost\",\n  MAX(CASE WHEN str_value='true' THEN 1 ELSE 0 END) as \"Rear Defrost\",\n  MAX(CASE WHEN str_value='true' THEN 1 ELSE 0 END) as \"AC On\",\n  MAX(CASE WHEN str_value='HvacAutoModeStateOn' THEN 1 ELSE 0 END) as \"Auto Mode\"\nFROM telemetry \nWHERE field IN ('DefrostMode','RearDefrostEnabled','HvacACEnabled','HvacAutoMode') \n  AND vin='$vin' AND $__timeFilter(ts)\nGROUP BY 1 ORDER BY 1",
+          "rawSql": "SELECT \n  $__timeGroup(ts, '1m') as time,\n  MAX(CASE WHEN field='DefrostMode' THEN CASE WHEN str_value='DefrostModeStateOff' THEN 0 ELSE 1 END END) as \"Front Defrost\",\n  MAX(CASE WHEN field='RearDefrostEnabled' THEN CASE WHEN str_value='true' THEN 1 ELSE 0 END END) as \"Rear Defrost\",\n  MAX(CASE WHEN field='HvacACEnabled' THEN CASE WHEN str_value='true' THEN 1 ELSE 0 END END) as \"AC On\",\n  MAX(CASE WHEN field='HvacAutoMode' THEN CASE WHEN str_value='HvacAutoModeStateOn' THEN 1 ELSE 0 END END) as \"Auto Mode\"\nFROM telemetry \nWHERE field IN ('DefrostMode','RearDefrostEnabled','HvacACEnabled','HvacAutoMode') \n  AND vin='$vin' AND $__timeFilter(ts)\nGROUP BY 1 ORDER BY 1",
           "format": "time_series"
         }
       ]

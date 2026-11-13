@@ -151,13 +151,44 @@
         "x": 0,
         "y": 6
       },
-      "description": "Combined status. CRITICAL = UI_a006 active (immediate inspection).",
+      "description": "Combined status: SUSPENSION_SERVICE_REQUIRED when UI_a006 (chassis/alignment) is active, SUSPENSION_LOOSENESS_LIKELY from rising lateral-acceleration variance, NO_DATA without recent highway driving.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "NORMAL": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "NORMAL"
+                },
+                "SUSPENSION_LOOSENESS_LIKELY": {
+                  "color": "yellow",
+                  "index": 1,
+                  "text": "LOOSENESS LIKELY"
+                },
+                "SUSPENSION_ALIGNMENT_LIKELY": {
+                  "color": "orange",
+                  "index": 2,
+                  "text": "ALIGNMENT LIKELY"
+                },
+                "SUSPENSION_SERVICE_RECOMMENDED": {
+                  "color": "red",
+                  "index": 3,
+                  "text": "SERVICE RECOMMENDED (URGENT)"
+                },
+                "SUSPENSION_SERVICE_REQUIRED": {
+                  "color": "dark-red",
+                  "index": 4,
+                  "text": "SERVICE REQUIRED (CRITICAL)"
+                }
+              }
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -279,7 +310,7 @@
         "x": 12,
         "y": 6
       },
-      "description": "Total active suspension-related alerts.",
+      "description": "Number of distinct active suspension alert codes (migration 028 fix #2: was COUNT(*) over alert sample rows, which could read in the hundreds for a single ongoing alert).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -328,7 +359,7 @@
     {
       "id": null,
       "type": "stat",
-      "title": "Steering Offset",
+      "title": "Lateral Accel Std-dev",
       "datasource": {
         "type": "postgres",
         "uid": "tesla_timescaledb"
@@ -339,7 +370,7 @@
         "x": 18,
         "y": 6
       },
-      "description": "Median steering angle during straight highway driving (°). >3° suggests drift.",
+      "description": "Latest highway lateral-acceleration standard deviation (g), the looseness proxy. Rising values indicate increased vibration or play. (The steering-offset stat was removed: SteeringAngle is not a Fleet Telemetry field.)",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -392,7 +423,7 @@
             "type": "postgres",
             "uid": "tesla_timescaledb"
           },
-          "rawSql": "SELECT last_offset_abs_median FROM suspension_summary WHERE vin = '$vin'",
+          "rawSql": "SELECT last_lat_accel_stddev FROM suspension_summary WHERE vin = '$vin'",
           "format": "table"
         }
       ]
@@ -400,7 +431,7 @@
     {
       "id": null,
       "type": "row",
-      "title": "📉 Steering Offset Trend (Secondary)",
+      "title": "📉 Lateral Acceleration (Secondary)",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -412,7 +443,7 @@
     {
       "id": null,
       "type": "timeseries",
-      "title": "Steering Offset Magnitude",
+      "title": "Lateral Accel Variance Trend",
       "datasource": {
         "type": "postgres",
         "uid": "tesla_timescaledb"
@@ -423,7 +454,7 @@
         "x": 0,
         "y": 11
       },
-      "description": "Progressive increase in steering offset = mechanical drag (bushings, ball joints, toe drift).",
+      "description": "Daily highway lateral-acceleration std-dev with its 30- and 90-day averages. SUSPENSION_LOOSENESS_LIKELY when the 30-day average exceeds 1.5x the 90-day average.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -495,15 +526,15 @@
             "type": "postgres",
             "uid": "tesla_timescaledb"
           },
-          "rawSql": "SELECT ts AS time, steering_offset_abs_median AS \"Daily offset (°)\", offset_abs_30d_avg AS \"30-day avg\", offset_abs_90d_avg AS \"90-day avg\" FROM suspension_diagnostics WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts",
+          "rawSql": "SELECT ts AS time, lat_accel_stddev AS \"Daily std-dev (g)\", lat_std_30d_avg AS \"30-day avg\", lat_std_90d_avg AS \"90-day avg\" FROM suspension_diagnostics WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts",
           "format": "time_series"
         }
       ]
     },
     {
       "id": null,
-      "type": "xychart",
-      "title": "Lateral Accel vs Steering Angle",
+      "type": "timeseries",
+      "title": "Highway Lateral Acceleration",
       "datasource": {
         "type": "postgres",
         "uid": "tesla_timescaledb"
@@ -514,53 +545,24 @@
         "x": 12,
         "y": 11
       },
-      "description": "Scatter of highway 1-minute samples. Healthy = cluster near (0, 0). Drifted suspension shifts horizontally.",
+      "description": "1-minute average lateral acceleration on the highway (speed > 50). A persistent offset from zero on straight roads hints at drift. (The steering-angle scatter was removed: SteeringAngle is not a Fleet Telemetry field.)",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
+          "unit": "none",
           "custom": {
-            "axisBorderShow": false,
-            "axisColorMode": "text",
-            "pointSize": {
-              "fixed": 4,
-              "min": 1,
-              "max": 20
-            },
-            "show": "points",
-            "spanNulls": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
+            "drawStyle": "points",
+            "pointSize": 3
           }
         },
         "overrides": []
       },
       "options": {
-        "seriesMapping": "manual",
-        "series": [
-          {
-            "frame": {
-              "name": "Steering vs Lateral Accel"
-            },
-            "x": "Steering angle (°)",
-            "y": "Lateral accel (g)"
-          }
-        ],
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        },
         "legend": {
-          "showLegend": true
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
         }
       },
       "targets": [
@@ -569,7 +571,7 @@
             "type": "postgres",
             "uid": "tesla_timescaledb"
           },
-          "rawSql": "SELECT steering_avg AS \"Steering angle (°)\", lat_accel_avg AS \"Lateral accel (g)\" FROM suspension_samples_1m WHERE vin = '$vin' AND speed_avg > 50 AND ABS(lat_accel_avg) < 0.10 AND steering_avg IS NOT NULL AND $__timeFilter(bucket) ORDER BY bucket",
+          "rawSql": "SELECT bucket AS time, lat_accel_avg AS \"Lateral accel (g)\" FROM suspension_samples_1m WHERE vin = '$vin' AND speed_avg > 50 AND $__timeFilter(bucket) ORDER BY bucket",
           "format": "table"
         }
       ]
@@ -600,7 +602,7 @@
         "x": 0,
         "y": 20
       },
-      "description": "Works even without SteeringAngle. Rising std-dev indicates increased vibration/looseness.",
+      "description": "Daily highway lateral-acceleration std-dev and mean drift. Rising std-dev indicates increased vibration/looseness.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -672,7 +674,7 @@
     {
       "id": null,
       "type": "table",
-      "title": "Per-Trip Steering Offset",
+      "title": "Per-Trip Highway Lateral Acceleration",
       "datasource": {
         "type": "postgres",
         "uid": "tesla_timescaledb"
@@ -683,7 +685,7 @@
         "x": 12,
         "y": 20
       },
-      "description": "Recent trips with highway straight-line offset analysis.",
+      "description": "Recent highway trips: straight-line minutes and lateral-acceleration drift / std-dev.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -728,7 +730,7 @@
             "type": "postgres",
             "uid": "tesla_timescaledb"
           },
-          "rawSql": "SELECT started AS \"Trip start\", distance_km AS \"Distance (km)\", max_speed_mph AS \"Max speed (mph)\", ROUND(steering_offset_median::numeric, 2) AS \"Offset (°)\", straight_highway_minutes AS \"Straight min\" FROM suspension_trip_offsets WHERE vin = '$vin' ORDER BY started DESC LIMIT 50",
+          "rawSql": "SELECT started AS \"Trip start\", distance_km AS \"Distance (km)\", max_speed_mph AS \"Max speed (mph)\", straight_highway_minutes AS \"Straight min\", ROUND(lat_accel_drift::numeric, 4) AS \"Mean drift (g)\", ROUND(lat_accel_stddev::numeric, 4) AS \"Std-dev (g)\" FROM suspension_trip_offsets WHERE vin = '$vin' ORDER BY started DESC LIMIT 50",
           "format": "table"
         }
       ]

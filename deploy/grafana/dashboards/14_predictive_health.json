@@ -113,13 +113,24 @@
         "type": "postgres",
         "uid": "tesla_timescaledb"
       },
-      "description": "Weighted composite risk score (0=healthy, 100=critical). Includes recommended action.",
+      "description": "Weighted risk over the subsystems that apply to this vehicle and have recent evidence (renormalised; 'no data' when none). Headline = worst of the weighted band, any single subsystem's band and any active critical alert. Highest risk is shown only when some subsystem is at 40 or above.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "no data",
+                  "color": "text"
+                }
+              }
+            }
+          ],
           "max": 100,
           "min": 0,
           "thresholds": {
@@ -143,13 +154,14 @@
               }
             ]
           },
-          "unit": ""
+          "unit": "",
+          "noValue": "no data"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
+        "w": 5,
         "x": 0,
         "y": 6
       },
@@ -176,7 +188,7 @@
             "uid": "tesla_timescaledb"
           },
           "format": "table",
-          "rawSql": "SELECT overall_risk_score, highest_risk_subsystem, recommended_action FROM predictive_health_summary WHERE vin = '$vin'"
+          "rawSql": "SELECT overall_risk_score AS \"Overall risk\", headline_severity AS \"Headline\", COALESCE(highest_risk_subsystem, 'none above normal') AS \"Highest risk\", recommended_action AS \"Action\", scored_subsystems AS \"Subsystems scored\" FROM predictive_health_summary WHERE vin = '$vin'"
         }
       ],
       "title": "Overall Health",
@@ -187,13 +199,24 @@
         "type": "postgres",
         "uid": "tesla_timescaledb"
       },
-      "description": "Battery capacity fade + brick imbalance + active battery alerts.",
+      "description": "Battery capacity fade + brick imbalance + active battery alerts. 'no data' = no recent evidence (see the per-subsystem limits in 051) or not applicable.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "no data",
+                  "color": "text"
+                }
+              }
+            }
+          ],
           "max": 100,
           "min": 0,
           "thresholds": {
@@ -217,14 +240,15 @@
               }
             ]
           },
-          "unit": ""
+          "unit": "",
+          "noValue": "no data"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 6,
+        "w": 5,
+        "x": 5,
         "y": 6
       },
       "id": null,
@@ -261,13 +285,24 @@
         "type": "postgres",
         "uid": "tesla_timescaledb"
       },
-      "description": "Drivetrain (60%) + Regen/Brake (25%) + PCS (15%). Motor temps, torque degradation, charging.",
+      "description": "Drivetrain (60%) + Regen/Brake (25%) + PCS (15%). Motor temps, torque degradation, charging. 'no data' = no recent evidence (see the per-subsystem limits in 051) or not applicable.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "no data",
+                  "color": "text"
+                }
+              }
+            }
+          ],
           "max": 100,
           "min": 0,
           "thresholds": {
@@ -291,14 +326,15 @@
               }
             ]
           },
-          "unit": ""
+          "unit": "",
+          "noValue": "no data"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 12,
+        "w": 5,
+        "x": 10,
         "y": 6
       },
       "id": null,
@@ -335,13 +371,24 @@
         "type": "postgres",
         "uid": "tesla_timescaledb"
       },
-      "description": "Heat Pump (60%) + Battery thermal (40%). HVAC efficiency and pack thermal imbalance.",
+      "description": "Heat Pump (60%) + Battery thermal (40%). HVAC efficiency and pack thermal imbalance. 'no data' = no recent evidence (see the per-subsystem limits in 051) or not applicable.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "no data",
+                  "color": "text"
+                }
+              }
+            }
+          ],
           "max": 100,
           "min": 0,
           "thresholds": {
@@ -365,14 +412,15 @@
               }
             ]
           },
-          "unit": ""
+          "unit": "",
+          "noValue": "no data"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 18,
+        "w": 5,
+        "x": 15,
         "y": 6
       },
       "id": null,
@@ -405,6 +453,86 @@
       "type": "stat"
     },
     {
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "description": "Hours since the newest diagnostic evidence used by the health score (not the newest GPS or other telemetry row). Per-subsystem evidence times are in predictive_health_summary.<name>_last_ts.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "no data",
+                  "color": "text"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 6
+              },
+              {
+                "color": "red",
+                "value": 24
+              }
+            ]
+          },
+          "unit": "h",
+          "noValue": "no data"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 6
+      },
+      "id": null,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "format": "table",
+          "rawSql": "SELECT telemetry_age_h FROM predictive_health_summary WHERE vin = '$vin'"
+        }
+      ],
+      "title": "Data Freshness",
+      "type": "stat"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -421,7 +549,7 @@
         "type": "postgres",
         "uid": "tesla_timescaledb"
       },
-      "description": "Daily risk scores per subsystem. Overall line is thicker. Green=0–30, Yellow=31–60, Orange=61–80, Red=81–100.",
+      "description": "Daily risk per subsystem. Gaps = no evidence that day or not applicable to this vehicle (no longer drawn as a healthy 5). Overall is renormalised over the subsystems scored that day. Battery is the full-charge weekly estimator, as in the headline. Green=0–39, Yellow=40–59, Orange=60–84, Red=85+.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -519,7 +647,7 @@
             "uid": "tesla_timescaledb"
           },
           "format": "time_series",
-          "rawSql": "SELECT ts AS time, overall_risk_score AS \"Overall\", battery_score AS \"Battery\", drivetrain_score AS \"Drivetrain\", alert_score AS \"Alerts\", heat_pump_score AS \"Heat Pump\", regen_brake_score AS \"Regen/Brake\", low_voltage_score AS \"12V Battery\", suspension_score AS \"Suspension\", air_suspension_score AS \"Air Suspension\", dual_motor_score AS \"Dual Motor\", cybertruck_score AS \"Cybertruck\", pcs_score AS \"PCS\" FROM predictive_health_score_1d WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts"
+          "rawSql": "SELECT ts AS time, overall_risk_score AS \"Overall\", battery_score AS \"Battery (full-charge)\", drivetrain_score AS \"Drivetrain\", alert_score AS \"Alerts\", heat_pump_score AS \"Heat Pump\", regen_brake_score AS \"Regen/Brake\", low_voltage_score AS \"12V Battery\", suspension_score AS \"Suspension\", dual_motor_score AS \"Dual Motor\", cybertruck_score AS \"Cybertruck\", pcs_score AS \"PCS\" FROM predictive_health_score_1d WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts"
         }
       ],
       "title": "Subsystem Risk Scores Over Time",
@@ -542,7 +670,7 @@
         "type": "postgres",
         "uid": "tesla_timescaledb"
       },
-      "description": "Currently active vehicle alerts sorted by severity.",
+      "description": "Active, unacknowledged alert instances (started within the last 7 days and not ended). An acknowledgement covers one instance and stops applying when it ends; the summary counts alerts the same way.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -659,7 +787,7 @@
             "uid": "tesla_timescaledb"
           },
           "format": "table",
-          "rawSql": "SELECT alert_code AS \"Code\", severity AS \"Severity\", subsystem AS \"Subsystem\", description AS \"Description\", is_active AS \"Active\", started_at AS \"Started\" FROM parsed_alerts WHERE vin = '$vin' AND is_active = TRUE ORDER BY CASE severity WHEN 'CRITICAL' THEN 1 WHEN 'URGENT' THEN 2 WHEN 'WARNING' THEN 3 ELSE 4 END, started_at DESC"
+          "rawSql": "SELECT pa.alert_code AS \"Code\", pa.severity AS \"Severity\", pa.subsystem AS \"Subsystem\", pa.description AS \"Description\", pa.started_at AS \"Started\" FROM parsed_alerts pa WHERE pa.vin = '$vin' AND pa.is_active AND NOT alert_is_acknowledged(pa.vin, pa.alert_code, COALESCE(pa.started_at, pa.ts)) ORDER BY CASE pa.severity WHEN 'CRITICAL' THEN 1 WHEN 'URGENT' THEN 2 WHEN 'WARNING' THEN 3 ELSE 4 END, pa.started_at DESC"
         }
       ],
       "title": "Active Alerts",
@@ -682,7 +810,7 @@
         "type": "postgres",
         "uid": "tesla_timescaledb"
       },
-      "description": "Per-subsystem risk scores and recommended next steps for this vehicle.",
+      "description": "Per-subsystem risk scores and recommended next steps for this vehicle. Brakes is information only (no risk score): telemetry has no pad-wear signal, so the row states the recorded pad history.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -767,6 +895,16 @@
                       }
                     },
                     "type": "value"
+                  },
+                  {
+                    "options": {
+                      "INFO": {
+                        "color": "blue",
+                        "index": 4,
+                        "text": "INFO"
+                      }
+                    },
+                    "type": "value"
                   }
                 ]
               },
@@ -830,7 +968,7 @@
             "uid": "tesla_timescaledb"
           },
           "format": "table",
-          "rawSql": "SELECT subsystem AS \"Subsystem\", risk_score AS \"Risk\", severity AS \"Status\", recommendation AS \"Recommended Action\" FROM predictive_health_recommendations WHERE vin = '$vin' ORDER BY risk_score DESC"
+          "rawSql": "SELECT subsystem AS \"Subsystem\", risk_score AS \"Risk\", severity AS \"Status\", recommendation AS \"Recommended Action\", evidence_ts AS \"Evidence from\" FROM predictive_health_recommendations WHERE vin = '$vin' ORDER BY risk_score DESC NULLS LAST"
         }
       ],
       "title": "Recommended Actions",
@@ -843,148 +981,6 @@
         "w": 24,
         "x": 0,
         "y": 45
-      },
-      "id": null,
-      "title": "🛞 Air Suspension (Model S/X/Y/CT only)",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "postgres",
-        "uid": "tesla_timescaledb"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            {
-              "options": {
-                "match": "null",
-                "result": {
-                  "text": "N/A"
-                }
-              },
-              "type": "special"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 40
-              },
-              {
-                "color": "red",
-                "value": 60
-              }
-            ]
-          }
-        }
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 8,
-        "x": 0,
-        "y": 46
-      },
-      "id": null,
-      "targets": [
-        {
-          "format": "table",
-          "rawSql": "SELECT status, compressor_events_24h, duty_cycle_avg, ride_height_drift_mm FROM air_suspension_summary WHERE vin = '$vin' AND has_air_suspension = TRUE"
-        }
-      ],
-      "title": "Compressor Health",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "postgres",
-        "uid": "tesla_timescaledb"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2
-          },
-          "unit": "events"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 16,
-        "x": 8,
-        "y": 46
-      },
-      "id": null,
-      "targets": [
-        {
-          "format": "table",
-          "rawSql": "SELECT ts AS time, compressor_cycling_hours AS \"Daily events\", cycling_7d_avg AS \"7-day avg\", cycling_30d_avg AS \"30-day avg\" FROM air_suspension_diagnostics WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts"
-        }
-      ],
-      "title": "Compressor Events vs Baseline",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "postgres",
-        "uid": "tesla_timescaledb"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 3
-              },
-              {
-                "color": "red",
-                "value": 5
-              }
-            ]
-          },
-          "unit": "mm"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 54
-      },
-      "id": null,
-      "targets": [
-        {
-          "format": "table",
-          "rawSql": "SELECT ts AS time, height_drift_max_mm AS \"Max drift (mm)\", drift_7d_avg AS \"7-day avg\", drift_30d_avg AS \"30-day avg\" FROM air_suspension_diagnostics WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts"
-        }
-      ],
-      "title": "Ride Height Stability (mm drift)",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 62
       },
       "id": null,
       "title": "⚡ Dual Motor (LR AWD / Performance / Tri Motor only)",
@@ -1031,7 +1027,7 @@
         "h": 5,
         "w": 8,
         "x": 0,
-        "y": 63
+        "y": 46
       },
       "id": null,
       "targets": [
@@ -1061,7 +1057,7 @@
         "h": 8,
         "w": 16,
         "x": 8,
-        "y": 63
+        "y": 46
       },
       "id": null,
       "targets": [
@@ -1091,7 +1087,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 71
+        "y": 54
       },
       "id": null,
       "targets": [
@@ -1138,7 +1134,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 71
+        "y": 54
       },
       "id": null,
       "targets": [
@@ -1156,7 +1152,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 79
+        "y": 62
       },
       "id": null,
       "title": "🛻 Cybertruck (CT only)",
@@ -1203,17 +1199,18 @@
         "h": 5,
         "w": 8,
         "x": 0,
-        "y": 80
+        "y": 63
       },
       "id": null,
       "targets": [
         {
           "format": "table",
-          "rawSql": "SELECT overall_severity, tonneau_status, v2l_status, tri_motor_status, air_suspension_status, battery_4680_status, overall_reason FROM cybertruck_summary WHERE vin = '$vin' AND model = 'CT'"
+          "rawSql": "SELECT overall_severity, tonneau_status, v2l_status, tri_motor_status, battery_4680_status, overall_reason FROM cybertruck_summary WHERE vin = '$vin' AND model = 'CT'"
         }
       ],
       "title": "Cybertruck Health",
-      "type": "stat"
+      "type": "stat",
+      "description": "Latest Cybertruck subsystem statuses: tonneau, V2L, tri-motor and 4680 pack (air suspension removed in 045: its fields are not sent through Fleet Telemetry)."
     },
     {
       "datasource": {
@@ -1233,7 +1230,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 80
+        "y": 63
       },
       "id": null,
       "targets": [
@@ -1280,7 +1277,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 80
+        "y": 63
       },
       "id": null,
       "targets": [
@@ -1310,7 +1307,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 88
+        "y": 71
       },
       "id": null,
       "targets": [
@@ -1327,6 +1324,7 @@
         "type": "postgres",
         "uid": "tesla_timescaledb"
       },
+      "description": "\"Generic %\" is battery_health_diagnostics.capacity_degradation_pct (via ct_battery_4680_diagnostics), which received only the minimum fix in migration 028 — an SOC>=80% floor and a median-of-first-3 baseline — not the full-charge-weekly rewiring used by the battery dashboard's headline stat. The 7/10/15% thresholds here (and in 017_cybertruck_diagnostics.sql) were tuned against the old noisier signal and have not been revisited; tightening them is a judgement call for Piotr, not folded into the bugfix migration.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -1357,7 +1355,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 88
+        "y": 71
       },
       "id": null,
       "targets": [
@@ -1367,6 +1365,253 @@
         }
       ],
       "title": "4680 Battery Degradation",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 79
+      },
+      "id": null,
+      "panels": [],
+      "title": "📅 Calendar-Based Service Intervals",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "description": "Time/mileage-based maintenance items (cabin filter, brake fluid, tyre rotation, A/C desiccant) from service_interval_status. Independent of the statistical anomaly detection above.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 31
+              },
+              {
+                "color": "orange",
+                "value": 61
+              },
+              {
+                "color": "red",
+                "value": 81
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "OVERDUE": {
+                        "color": "red",
+                        "index": 0,
+                        "text": "OVERDUE"
+                      }
+                    },
+                    "type": "value"
+                  },
+                  {
+                    "options": {
+                      "DUE_SOON": {
+                        "color": "yellow",
+                        "index": 1,
+                        "text": "DUE SOON"
+                      }
+                    },
+                    "type": "value"
+                  },
+                  {
+                    "options": {
+                      "OK": {
+                        "color": "green",
+                        "index": 2,
+                        "text": "OK"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 80
+      },
+      "id": null,
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Status"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "format": "table",
+          "rawSql": "SELECT description AS \"Item\", status AS \"Status\", due_at AS \"Due date\", due_odometer_mi AS \"Due odometer (mi)\", last_done_at AS \"Last done\" FROM service_interval_status WHERE vin = '$vin' ORDER BY CASE status WHEN 'OVERDUE' THEN 1 WHEN 'DUE_SOON' THEN 2 ELSE 3 END, due_at"
+        }
+      ],
+      "title": "Service Interval Status",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 88
+      },
+      "id": null,
+      "panels": [],
+      "title": "⚡ HV Isolation Resistance",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "description": "HV isolation resistance in kΩ as sent by the car (Tesla documents no unit; values around 5,000 = 5 MΩ). Below 100 kΩ is flagged LOW, below 250 kΩ WARNING (thresholds unvalidated).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 100.0
+              },
+              {
+                "color": "green",
+                "value": 250.0
+              }
+            ]
+          },
+          "unit": "kohm"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 89
+      },
+      "id": null,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "format": "table",
+          "rawSql": "SELECT min_ohms FROM isolation_resistance_diagnostics WHERE vin = '$vin' ORDER BY ts DESC LIMIT 1"
+        }
+      ],
+      "title": "Isolation Resistance (latest daily min)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "description": "HV isolation resistance in kΩ as sent by the car (Tesla documents no unit; values around 5,000 = 5 MΩ). Below 100 kΩ is flagged LOW, below 250 kΩ WARNING (thresholds unvalidated).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2
+          },
+          "unit": "kohm"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 89
+      },
+      "id": null,
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT ts AS time, avg_ohms AS \"Avg\", min_ohms AS \"Min\" FROM isolation_resistance_diagnostics WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts"
+        }
+      ],
+      "title": "Isolation Resistance Trend",
       "type": "timeseries"
     }
   ],
@@ -1436,5 +1681,5 @@
   "timezone": "browser",
   "title": "Tesla — Predictive Health",
   "uid": "tesla-predictive-health",
-  "version": 1
+  "version": 2
 }

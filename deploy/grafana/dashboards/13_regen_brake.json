@@ -336,7 +336,7 @@
             "type": "postgres",
             "uid": "tesla_timescaledb"
           },
-          "rawSql": "SELECT CASE WHEN '$dist_effective' = 'imperial' THEN efficiency_wh_mi ELSE ROUND((efficiency_wh_mi * 1.60934)::numeric, 1) END FROM regen_brake_summary WHERE vin = '$vin'",
+          "rawSql": "SELECT CASE WHEN '$dist_effective' = 'imperial' THEN efficiency_wh_mi ELSE ROUND((efficiency_wh_mi / 1.60934)::numeric, 1) END FROM regen_brake_summary WHERE vin = '$vin'",
           "format": "table"
         }
       ]
@@ -499,8 +499,8 @@
     },
     {
       "id": null,
-      "type": "gauge",
-      "title": "Brake Pad Remaining",
+      "type": "table",
+      "title": "Brake Pads (record)",
       "datasource": {
         "type": "postgres",
         "uid": "tesla_timescaledb"
@@ -511,53 +511,30 @@
         "x": 0,
         "y": 11
       },
-      "description": "Estimated brake pad life remaining. Based on odometer adjusted by regen ratio. Conservative linear model.",
+      "description": "Pad history from the service log (bot: brake_pads, brake_inspection; owner-confirmed original pads). Telemetry has no pad-wear signal, so no wear percentage is shown; regen-heavy cars commonly exceed 100k mi on a set. Pad condition is checked at the periodic safety inspection.",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
           },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 25
-              },
-              {
-                "color": "yellow",
-                "value": 50
-              },
-              {
-                "color": "green",
-                "value": 75
-              }
-            ]
-          },
-          "unit": "percent",
-          "min": 0,
-          "max": 100
+          "mappings": []
         },
         "overrides": []
       },
       "options": {
-        "showThresholdLabels": true,
-        "showThresholdMarkers": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
           ],
-          "fields": "",
-          "values": false
+          "countRows": false,
+          "fields": ""
         }
       },
       "targets": [
@@ -566,8 +543,8 @@
             "type": "postgres",
             "uid": "tesla_timescaledb"
           },
-          "rawSql": "SELECT remaining_pct FROM brake_wear_estimate WHERE vin = '$vin'",
-          "format": "table"
+          "format": "table",
+          "rawSql": "SELECT CASE wear_basis WHEN 'SINCE_PAD_REPLACEMENT' THEN 'Replaced ' || to_char(pad_replaced_at, 'YYYY-MM-DD') WHEN 'ORIGINAL_PADS_CONFIRMED' THEN 'Original (owner-confirmed)' ELSE 'No record' END AS \"Pads\", CASE WHEN '$dist_effective' = 'imperial' THEN pad_miles ELSE ROUND(pad_miles * 1.60934) END AS \"Distance on this set\", to_char(last_inspection_at, 'YYYY-MM-DD') AS \"Last checked\", brake_style_assessment AS \"Regen use\" FROM brake_wear_estimate WHERE vin = '$vin'"
         }
       ]
     },
@@ -756,7 +733,7 @@
             "type": "postgres",
             "uid": "tesla_timescaledb"
           },
-          "rawSql": "SELECT ts AS time, CASE WHEN '$dist_effective' = 'imperial' THEN efficiency_wh_mi ELSE ROUND((efficiency_wh_mi * 1.60934)::numeric, 1) END AS \"Efficiency\", CASE WHEN '$dist_effective' = 'imperial' THEN eff_7d_avg ELSE ROUND((eff_7d_avg * 1.60934)::numeric, 1) END AS \"7-day avg\", CASE WHEN '$dist_effective' = 'imperial' THEN eff_30d_avg ELSE ROUND((eff_30d_avg * 1.60934)::numeric, 1) END AS \"30-day avg\" FROM regen_brake_diagnostics WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts",
+          "rawSql": "SELECT ts AS time, CASE WHEN '$dist_effective' = 'imperial' THEN efficiency_wh_mi ELSE ROUND((efficiency_wh_mi / 1.60934)::numeric, 1) END AS \"Efficiency\", CASE WHEN '$dist_effective' = 'imperial' THEN eff_7d_avg ELSE ROUND((eff_7d_avg / 1.60934)::numeric, 1) END AS \"7-day avg\", CASE WHEN '$dist_effective' = 'imperial' THEN eff_30d_avg ELSE ROUND((eff_30d_avg / 1.60934)::numeric, 1) END AS \"30-day avg\" FROM regen_brake_diagnostics WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts",
           "format": "time_series"
         }
       ]
@@ -1019,6 +996,353 @@
           },
           "rawSql": "SELECT ts AS time, distance_delta_mi AS \"Distance (mi)\", energy_drive_delta_kwh AS \"Drive energy (kWh)\", energy_regen_delta_kwh AS \"Regen energy (kWh)\" FROM regen_brake_diagnostics WHERE vin = '$vin' AND $__timeFilter(ts) ORDER BY ts",
           "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "row",
+      "title": "🧪 Experimental — route efficiency (frequent routes)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "panels": []
+    },
+    {
+      "id": null,
+      "type": "text",
+      "title": "About this experimental monitor",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 38
+      },
+      "description": "EXPERIMENTAL. The repeated-route idea comes from Packfade's approach (https://github.com/pgodlews/packfade, MIT licence) by the same author; the fit reuses its Huber-WLS and day-clustered bootstrap.",
+      "options": {
+        "mode": "markdown",
+        "content": "**Experimental.** Routes the car drives often (found from trip start/end points, distance and the road taken) are used as a repeatable test: on the same route at matched conditions, energy per distance should be stable, so a lasting drift points at tyres and pressures, alignment, a dragging brake or added load.\n\nEnergy is the BMS count (state of charge used), not the 30 s pack-power samples. Rain, wind and load are not measured.\n\nIdea from [Packfade](https://github.com/pgodlews/packfade) (MIT) by the same author."
+      }
+    },
+    {
+      "id": null,
+      "type": "stat",
+      "title": "Reading (plain words)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 38
+      },
+      "description": "EXPERIMENTAL. Plain-words reading of the pooled drift (all qualifying routes, route fixed effects): 'Not distinguishable from no drift' while its 95 % interval includes zero. What it can tell: whether energy per distance on routes driven often has drifted over time at matched conditions (outside temperature, trip duration, HVAC fan level). What it cannot: wet or dry roads, wind, load and passengers are not in the telemetry; short routes are dominated by cabin heating or cooling; months of data give wide intervals. Tyre pressure and temperature are the usual causes of a change. Not part of the health score. The repeated-route idea comes from Packfade's approach (https://github.com/pgodlews/packfade, MIT licence) by the same author; the fit reuses its Huber-WLS and day-clustered bootstrap.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": ""
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT message FROM route_efficiency_estimate WHERE vin = '$vin' ORDER BY computed_at DESC LIMIT 1",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "stat",
+      "title": "Efficiency drift (pooled)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 12,
+        "y": 38
+      },
+      "description": "EXPERIMENTAL. Change in energy per distance per year on the same routes at matched conditions (positive = using more), with the 95 % day-clustered bootstrap interval. What it can tell: whether energy per distance on routes driven often has drifted over time at matched conditions (outside temperature, trip duration, HVAC fan level). What it cannot: wet or dry roads, wind, load and passengers are not in the telemetry; short routes are dominated by cabin heating or cooling; months of data give wide intervals. Tyre pressure and temperature are the usual causes of a change. Not part of the health score. The repeated-route idea comes from Packfade's approach (https://github.com/pgodlews/packfade, MIT licence) by the same author; the fit reuses its Huber-WLS and day-clustered bootstrap.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT drift_pct_per_year AS \"Drift %/year\", concat(round(drift_lo_pct_per_year::numeric, 1), ' to ', round(drift_hi_pct_per_year::numeric, 1), ' %/yr') AS \"95 % interval\" FROM route_efficiency_estimate WHERE vin = '$vin' ORDER BY computed_at DESC LIMIT 1",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "stat",
+      "title": "Routes and trips",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 38
+      },
+      "description": "EXPERIMENTAL. Routes and trips in the pooled model. A route qualifies with at least 8 trips over the same road (endpoints within 300 m, distance within 10 % of its median, distance CV at most 5 %, at least 1 km). Temperature effect: change in energy per distance per +10 °C outside; positive on short summer drives is cabin cooling. The repeated-route idea comes from Packfade's approach (https://github.com/pgodlews/packfade, MIT licence) by the same author; the fit reuses its Huber-WLS and day-clustered bootstrap.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "rawSql": "SELECT concat(n_routes, ' routes, ', n_used, ' trips') AS \"Used\", concat(n_days, ' days, ', round(span_days::numeric), '-day span') AS \"Span\", temp_effect_pct_per_10c AS \"Temp effect %/10°C\" FROM route_efficiency_estimate WHERE vin = '$vin' ORDER BY computed_at DESC LIMIT 1",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "table",
+      "title": "Per-route drift — experimental",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "description": "EXPERIMENTAL. One row per qualifying route (named from the bot's saved places when both endpoints fall inside one, otherwise Route A, B, ... by trip count). Per-route fits use time and outside temperature only (too few trips for more); with a few months of data most intervals are very wide. Raw scatter: robust spread of ln(energy per distance) around the route's median. What it can tell: whether energy per distance on routes driven often has drifted over time at matched conditions (outside temperature, trip duration, HVAC fan level). What it cannot: wet or dry roads, wind, load and passengers are not in the telemetry; short routes are dominated by cabin heating or cooling; months of data give wide intervals. Tyre pressure and temperature are the usual causes of a change. Not part of the health score. The repeated-route idea comes from Packfade's approach (https://github.com/pgodlews/packfade, MIT licence) by the same author; the fit reuses its Huber-WLS and day-clustered bootstrap.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "format": "table",
+          "rawSql": "SELECT route_display_name(vin, route_id) AS \"Route\", n_trips AS \"Trips\", round(median_distance_km::numeric, 2) AS \"Distance (km)\", round((median_wh_per_km * CASE WHEN '$dist_effective' = 'imperial' THEN 1.60934 ELSE 1 END)::numeric) AS \"Median Wh/km or Wh/mi\", status AS \"Status\", drift_pct_per_year AS \"Drift %/yr\", drift_lo_pct_per_year AS \"Low\", drift_hi_pct_per_year AS \"High\", temp_effect_pct_per_10c AS \"Temp %/10°C\", round(raw_scale::numeric, 2) AS \"Raw scatter\", message AS \"Reading\" FROM route_efficiency_routes WHERE vin = '$vin' ORDER BY n_trips DESC"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "type": "timeseries",
+      "title": "Normalised energy per distance on frequent routes — experimental",
+      "datasource": {
+        "type": "postgres",
+        "uid": "tesla_timescaledb"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 51
+      },
+      "description": "EXPERIMENTAL. Points: each used trip's energy per distance (Wh/km, or Wh/mi in imperial units) with the pooled model's temperature, duration and fan effects removed, one colour per route. Lines: the pooled model's fitted trend per route at average conditions. What it can tell: whether energy per distance on routes driven often has drifted over time at matched conditions (outside temperature, trip duration, HVAC fan level). What it cannot: wet or dry roads, wind, load and passengers are not in the telemetry; short routes are dominated by cabin heating or cooling; months of data give wide intervals. Tyre pressure and temperature are the usual causes of a change. Not part of the health score. The repeated-route idea comes from Packfade's approach (https://github.com/pgodlews/packfade, MIT licence) by the same author; the fit reuses its Huber-WLS and day-clustered bootstrap.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "points",
+            "pointSize": 6,
+            "showPoints": "always",
+            "lineWidth": 2,
+            "spanNulls": true,
+            "axisLabel": "Wh per distance"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/fitted/"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "never"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT started AS time, route_display_name(vin, route_id) AS metric, normalised_wh_per_km * CASE WHEN '$dist_effective' = 'imperial' THEN 1.60934 ELSE 1 END AS value FROM route_efficiency_points WHERE vin = '$vin' AND used ORDER BY started"
+        },
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT ts AS time, route_display_name(vin, route_id) || ' fitted' AS metric, fitted_wh_per_km * CASE WHEN '$dist_effective' = 'imperial' THEN 1.60934 ELSE 1 END AS value FROM route_efficiency_curve WHERE vin = '$vin' ORDER BY ts"
         }
       ]
     }
