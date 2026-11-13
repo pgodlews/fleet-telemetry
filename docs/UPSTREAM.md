@@ -289,7 +289,7 @@ The predictive maintenance stack now supports **all Tesla models** that stream F
 
 - **Battery Health** — 4680 vs 2170 baselines are inferred from model + year, so capacity fade curves use the correct chemistry expectations.
 - **Heat Pump** — Model Y and 2021+ Model 3 automatically get heat-pump degradation detection; older Model S/X skip the HVAC warning.
-- **Air Suspension** — Cybertruck, Model S, and Model X get suspension diagnostics; Model 3/Y skip the air-suspension panels.
+- **Air Suspension** — not monitored. No Tesla vehicle sends ride height, compressor state, suspension mode or steering angle through Fleet Telemetry (none of these fields is in `protos/vehicle_data.proto`, upstream's current proto, or Tesla's published field list), so `045` removed the air-suspension views, the Cybertruck air-suspension subsystem, the steering-offset check, their dashboard panels and the simulator fields.
 - **PCS Diagnostics** — All models get the 16/32 A charger module failure detection.
 - **Tonneau / Powershare** — Cybertruck and Semi get their unique fields in the simulator and catalog.
 
@@ -314,7 +314,6 @@ The simulator auto-detects the model from each VIN and generates model-specific 
 
 The Predictive Health dashboard includes a `$model` template variable. Use it to:
 - Filter fleet-wide views to a specific model
-- Hide air-suspension panels for Model 3/Y (`has_air_suspension = false`)
 - Show Cybertruck-specific tonneau metrics only when `model = 'CT'`
 
 Example query:
@@ -326,46 +325,9 @@ WHERE model = '$model'
 ORDER BY overall_risk_score DESC;
 ```
 
-## Air-Suspension Compressor Health (Model Y / S / X / Cybertruck)
+## Air suspension and steering angle — not available
 
-Vehicles with adaptive air suspension are monitored for compressor over-cycling and ride-height drift — the earliest signs of air leaks, failing dryer cartridges, or worn compressor seals.
-
-### What is monitored
-
-- **Compressor duty cycle** — fraction of parked hours where the compressor stays On. A healthy system should be < 5 %; > 15 % triggers a warning.
-- **Compressor event frequency** — number of On→Off cycles per day. A sudden doubling indicates the system is working harder to maintain pressure.
-- **Ride-height drift** — max corner-to-corner variance during parked Standard-mode hours. Drift > 5 mm suggests a slow leak in one corner.
-
-### How it helps Model Y owners
-
-Model Y Long Range / Performance (and the Juniper refresh) with optional air suspension benefit from the same early-warning system previously available only on Model S and X:
-
-- **Catch leaks before they strand you** — A slow leak in an air spring or line causes the compressor to cycle every 10–15 minutes while parked. The diagnostics flag this within 3 days, well before the car sags to Entry mode and refuses to raise.
-- **Avoid compressor burnout** — The compressor is designed for occasional top-ups, not continuous runtime. Detecting over-cycling early prevents the $1,200–$1,800 compressor replacement that follows a seized piston.
-- **Correlate with temperature** — Cold weather increases air-density and shrinks seals. The 7-day vs 30-day rolling baseline automatically adjusts for seasonal shifts, so you don't get false alarms in winter.
-- **Zero noise for coil-spring cars** — Model 3 and non-air Model Y vehicles are completely excluded. The CAGGs produce empty buckets, the views return no rows, and the Grafana panels show "N/A".
-
-### Grafana panels
-
-The Predictive Health dashboard includes three air-suspension panels (visible only when `has_air_suspension = true`):
-- **Compressor Health** — Stat panel with colour threshold (green < 40, yellow 40–60, red > 60)
-- **Compressor Events vs Baseline** — Time series with 7-day and 30-day trend lines
-- **Ride Height Stability** — Time series showing max corner drift with 5 mm warning line
-
-### Simulator testing
-
-```bash
-cd tools/simulator
-go build -o simulator .
-
-# Model Y with air suspension (VIN[3] = 'Y')
-./simulator \
-  -conn "postgres://grafana_ro:tesla_grafana_ro@localhost:5432/tesla" \
-  -vins "7SAYGDEE9PF000001" \
-  -interval 30
-```
-
-The simulator generates `AirSuspensionHeightFL/FR/RL/RR`, `AirSuspensionCompressorState`, and `AirSuspensionMode` for Model S, X, Y, and Cybertruck VINs. See `deploy/sql/015_air_suspension_diagnostics.sql` for synthetic failure injection instructions.
+Earlier versions shipped air-suspension compressor and ride-height diagnostics (`015`) and a steering-offset alignment check (`010`). They were built on `AirSuspensionHeightFL/FR/RL/RR`, `AirSuspensionCompressorState`, `AirSuspensionMode` and `SteeringAngle`, which no Tesla vehicle sends through Fleet Telemetry: they are not in this fork's proto, not in upstream's current `protos/vehicle_data.proto`, and not in Tesla's published available-data list for any model (checked November 2026). Only the simulator ever wrote them. Migration `045` removes everything built on them; the suspension view now uses what the car does send — `UI_a006` / `CH_*` alerts and highway lateral-acceleration variance (`LateralAcceleration`). If Tesla adds such fields, regenerate the protos and the views can be rebuilt.
 
 ## Dual Motor Diagnostics
 
@@ -394,7 +356,7 @@ The `vehicle_metadata.motor_config` column gates all dual-motor features:
 - **Dual Motor** — all diagnostics active
 - **Performance** — tighter thresholds, lower thermal/power baselines
 - **Tri Motor** — front + rear monitored; front motors averaged
-- **RWD** — `dual_motor_summary` returns NULL; health score defaults to 5 (healthy); Grafana panels show "N/A"
+- **RWD** — `dual_motor_summary` returns NULL; the dual-motor score is NULL (not applicable) and is left out of the weighted total; Grafana panels show "N/A"
 
 ### Predictive Health integration
 
@@ -402,16 +364,18 @@ The dual-motor subsystem is weighted at **5 %** of the overall health score (sha
 
 | Subsystem | Weight |
 |-----------|--------|
-| Battery | 23 % |
-| Drivetrain | 15 % |
+| Battery | 22 % |
+| Drivetrain | 14 % |
 | Alerts | 15 % |
 | 12V | 10 % |
 | Heat Pump | 10 % |
-| Regen/Brake | 8 % |
+| Regen/Brake | 7 % |
 | Suspension | 4 % |
-| Air Suspension | 5 % |
 | Dual Motor | 5 % |
+| Cybertruck | 4 % |
 | PCS | 5 % |
+
+Since `051` the overall score is the weighted mean over the subsystems that apply to the vehicle and have recent evidence (`subsystem_weight()`, `subsystem_applies()`, `subsystem_evidence_limit()`), so these weights are renormalised per vehicle; a subsystem without evidence scores NULL, not a healthy 5. The headline severity is the worst of the weighted band, any single subsystem's band and any active critical alert.
 
 ### Grafana panels
 
@@ -446,12 +410,11 @@ The simulator generates `DiInverterTF/TR`, `DiHeatsinkTF/TR`, `DiStatorTempF/R`,
 
 ### What it does
 
-`deploy/sql/017_cybertruck_diagnostics.sql` adds a comprehensive predictive layer for Tesla Cybertruck (standard and Cyberbeast Tri-Motor), covering five CT-unique subsystems:
+`deploy/sql/017_cybertruck_diagnostics.sql` adds a comprehensive predictive layer for Tesla Cybertruck (standard and Cyberbeast Tri-Motor), covering four CT-unique subsystems:
 
 - **Tonneau Cover Health** — Monitors `TonneauOpenPercent`, `TonneauPosition`, and `TonneauTentMode`. Flags `TONNEAU_STUCK_OR_MOTOR_FAILURE` when the position sensor reports stuck for multiple hours, or `TONNEAU_OPEN_WHILE_MOVING` when the cover is open during driving.
 - **V2L / Powershare Monitoring** — Tracks `PowershareInstantaneousPowerKW`, `PowershareStatus`, and `PowershareHoursLeft`. Flags `V2L_HIGH_LOAD_SUSTAINED` when export exceeds 5 kW for 4+ hours, `V2L_INVERTER_THERMAL_STRESS` when inverter temps exceed 85 °C during export, and `V2L_FAULT_CYCLE_LIKELY` when fault/restart cycles spike.
 - **Tri-Motor Balancing (Cyberbeast)** — Monitors front (`DiInverterTF`), rear-left (`DiInverterTREL`), and rear-right (`DiInverterTRER`) inverter temps, plus axle speeds and torque. Flags `TRI_MOTOR_REAR_IMBALANCE_LIKELY` when REL vs RER delta exceeds 10 °C, `TRI_MOTOR_FRONT_REAR_IMBALANCE_LIKELY` when front vs rear delta exceeds 12 °C, and `TRI_MOTOR_THERMAL_THROTTLING_RISK` when sustained power falls below 90% of baseline.
-- **Adaptive Air Suspension (CT-specific)** — Extends the generic air-suspension diagnostics (015) with Cybertruck-specific modes. Flags `CT_AIR_SUSPENSION_EXTRACT_AT_SPEED` when Extract mode is active above 5 mph, `CT_AIR_SUSPENSION_VERYHIGH_DRIFT` when VeryHigh mode ride-height drift exceeds 8 mm, and `CT_AIR_SUSPENSION_COMPRESSOR_OVERWORK` when duty cycle exceeds 20% (higher baseline due to heavier vehicle).
 - **4680 Structural Battery Degradation** — Extends the generic battery health view (009) with Cybertruck-specific baselines. Uses the first-recorded rest-capacity reading per VIN as the CT baseline. Flags `CT_4680_EARLY_DEGRADATION` at > 7%, `CT_4680_MODERATE_DEGRADATION` at > 10%, and `CT_4680_SEVERE_DEGRADATION` at > 15% capacity loss. Also monitors brick-voltage delta with a 0.15 V threshold (larger cells tolerate wider deltas but are harder to balance).
 
 ### How this helps Cybertruck owners
@@ -466,7 +429,7 @@ The Cybertruck is the most discussed and eagerly anticipated vehicle in the Tesl
 
 ### Model gating
 
-All cybertruck diagnostics are gated on `vehicle_metadata.model = 'CT'`. Non-Cybertruck vehicles return `NOT_APPLICABLE` with NULL metrics. The predictive health score defaults to 5 (healthy) for non-CT VINs via `COALESCE(cybertruck_score, 5)`.
+All cybertruck diagnostics are gated on `vehicle_metadata.model = 'CT'`. Non-Cybertruck vehicles return `NOT_APPLICABLE` with NULL metrics, and the Cybertruck score is NULL (not applicable) for them, so it does not enter the weighted total.
 
 ### Predictive Health integration
 
@@ -481,10 +444,11 @@ The Cybertruck subsystem is weighted at **5 %** of the overall health score (sha
 | Heat Pump | 10 % |
 | Regen/Brake | 7 % |
 | Suspension | 4 % |
-| Air Suspension | 5 % |
 | Dual Motor | 5 % |
-| Cybertruck | 5 % |
+| Cybertruck | 4 % |
 | PCS | 5 % |
+
+Since `051` the overall score is the weighted mean over the subsystems that apply to the vehicle and have recent evidence (`subsystem_weight()`, `subsystem_applies()`, `subsystem_evidence_limit()`), so these weights are renormalised per vehicle; a subsystem without evidence scores NULL, not a healthy 5. The headline severity is the worst of the weighted band, any single subsystem's band and any active critical alert.
 
 ### Grafana panels
 
@@ -514,7 +478,7 @@ go build -o simulator .
   -interval 30
 ```
 
-The simulator generates `TonneauOpenPercent/Position/TentMode`, `PowershareInstantaneousPowerKW/Status/Type/HoursLeft`, `DiInverterTREL/TRER`, `DiHeatsinkTREL/TRER`, `DiStatorTempREL/RER`, `DiAxleSpeedREL/RER`, `DiTorqueActualREL/RER`, `DiMotorCurrentREL/RER`, and `DiVBatREL/RER` for Cybertruck VINs. It also simulates CT-specific air-suspension modes (`VeryHigh`, `Extract`) and synthetic tonneau stuck events.
+The simulator generates `TonneauOpenPercent/Position/TentMode`, `PowershareInstantaneousPowerKW/Status/Type/HoursLeft`, `DiInverterTREL/TRER`, `DiHeatsinkTREL/TRER`, `DiStatorTempREL/RER`, `DiAxleSpeedREL/RER`, `DiTorqueActualREL/RER`, `DiMotorCurrentREL/RER`, and `DiVBatREL/RER` for Cybertruck VINs. It also simulates synthetic tonneau stuck events.
 
 ## Security and Privacy considerations
 

@@ -126,23 +126,106 @@ Know when regen is degrading **and** when the friction brakes will actually need
 
 ## 10. Master Predictive Health Dashboard & Unified Risk Score (Addition)
 
-**Problem it solves**  
+**Problem it solves**
 Ten separate views are powerful but overwhelming.
 
-**Rationale**  
-A single `predictive_health_summary` view that weights all subsystems into one 0–100 risk score:
+**Rationale**
+A single `predictive_health_summary` view that weights all subsystems into one 0–100 risk score. Weights below sum to **exactly 1.00** following the May-2026 review (see §11):
 
 | Subsystem | Weight |
-|## 11. Air-Suspension Compressor Health
+|-----------|--------|
+| Battery Health | 22 % |
+| Alerts | 15 % |
+| Drivetrain | 14 % |
+| 12V Battery | 10 % |
+| Heat Pump | 10 % |
+| Regen / Brake | 7 % |
+| Dual Motor | 5 % |
+| PCS | 5 % |
+| Suspension | 4 % |
+| Air Suspension | 4 % |
+| Cybertruck | 4 % |
+| **Total** | **100 %** |
 
-**Problem it solves**  
-Vehicles with adaptive air suspension (Model Y, S, X, CT) are prone to air leaks, failing dryer cartridges, or worn compressor seals. A slow leak in an air spring causes the compressor to cycle repeatedly while parked, eventually leading to a $1,200+ burnout.
+Scores: 0–30 = Healthy (green), 31–60 = Caution (yellow), 61–80 = Warning (orange), 81–100 = Critical (red). Composite "Powertrain" (Drivetrain+Regen+PCS) and "Thermal" (Heat Pump+Battery brick imbalance) scores are also provided for the top-level dashboard Stat row.
 
-**Rationale**  
-By monitoring compressor duty cycle and corner-to-corner ride-height drift during parked hours, we flag over-cycling early. The 7-day vs 30-day baseline automatically adjusts for cold weather (which shrinks seals), preventing false alarms in winter.
+> **Note on the weights:** air-suspension and Cybertruck were trimmed from
+> 5 % → 4 % (rather than trimming a non-optional subsystem) because they
+> default to a neutral 5 on non-equipped vehicles, so the rebalance has no
+> effect on the typical Model 3.
 
-**Owner value**  
-Catch leaks before they strand you in "Entry" mode and avoid catastrophic compressor burnout.
+**Owner value**
+At-a-glance “Your car is healthy / yellow / red” with one-click drill-down. This is what turns the project from “cool telemetry” into the definitive owner tool.
+
+---
+
+## 11. Review Fixes (May 2026)
+
+The original predictive stack (005–017) accumulated three classes of
+problem over development: weight-arithmetic drift, scale-mixing in
+composite formulas, and silently-frozen materialized views.  These were
+identified during a full code review and addressed in
+`deploy/sql/025_pm_review_fixes.sql` — purely additive, no rewrites.
+
+### Bugs fixed in-place
+
+| ID | Where | Symptom before | Fix |
+|----|-------|----------------|-----|
+| **B1** | 014 `predictive_health_summary` | weights summed to 1.02, so `overall_risk_score` could reach 102 | weights rebalanced to 1.00; expression hoisted into a `ranked` CTE so it is computed exactly once |
+| **B2** | tools/notify | `Odometer` stored in `service_log.odometer_km` as raw miles | `fetchCurrentOdometer` now converts miles → km at the boundary; user-facing strings honour `cfg.Units` via `formatOdometer()` |
+| **B3** | 006 / 007 / 008 / 009 | five matviews demoted from CAGGs and left without any refresh policy | `refresh_predictive_matviews()` introduced; auto-scheduled hourly via pg_cron, or callable from external cron |
+| **B4** | 014 `predictive_health_summary` | missing-subsystem rows defaulted to 5 (NORMAL) — indistinguishable from "no data" | view now exposes `telemetry_last_ts` and `telemetry_age_h`; dashboards can grey-out tiles older than e.g. 24 h |
+
+### Risks addressed
+
+| ID | Where | Fix |
+|----|-------|-----|
+| **R1** | 014 `thermal_risk` | replaced the two-valued `CASE … 5 vs 50` step with a continuous `LEAST(100, GREATEST(0, brick_delta × 200))` mapping |
+| **R2** | 007 heat-pump | `n_7d >= 3` → `n_7d >= 8`, `n_30d >= 10` → `n_30d >= 24`; the previous floors allowed a single drive in unusual weather to trip the ratio test |
+| **R3** | 009 `battery_capacity_1d` | the 5-line "rest hour" predicate is now computed once as an `is_rest` boolean in a CTE rather than inlined into five separate `FILTER` clauses |
+| **R6** | 025 (new) | `service_intervals` + `service_completions` + `service_interval_status` view: calendar-based maintenance items (cabin filter, brake fluid, A/C desiccant, tire rotation, S/X coolant) finally tracked |
+| **R7** | 025 (new) | `pm_alert_ack` table + `ack_pm_alert()` helper: a known alert can be muted for N days while service is being scheduled |
+| **R8** | 025 (new) | `pm_status_dictionary` table backing `subsystem_risk_score` so new status strings can be registered without editing the function body |
+
+### Nits addressed
+
+| ID | Where | Fix |
+|----|-------|-----|
+| **N1** | 013 `brake_wear_estimate` | `wear_pct` clamped to `[0, 100]` |
+| **N4** | 014 `recommended_action` | added a `WHEN heat_pump_score >= 75 THEN 'Schedule HVAC inspection …'` branch so heat-pump degradation actually triggers a service recommendation |
+| **N6** | 025 (new) | `isolation_resistance_diagnostics` promoted from anomaly z-score to a dedicated safety-critical indicator; `< 100 kΩ` triggers `ISOLATION_RESISTANCE_LOW` (score 95 via the dictionary) |
+
+### Honest things that remain unchanged
+
+The deeper rationale issues called out by the review are **not** silently
+papered over by 025.  They are intentionally left as documented limitations
+so a future contributor can prioritise them:
+
+- **Brake-pad linear model** (`50 000 mi × (1 − regen_ratio)`) is still
+  uncited and has no validation cohort.  The clamp in N1 prevents nonsense
+  values from leaking into composites; it does not improve the model.
+- **Heat-pump 1.15× / 3 °C thresholds** remain ad hoc.  Only the sample-
+  count floor was raised.
+- **Drivetrain absolute temperature limits** (85 °C inverter, 90 °C
+  heatsink, 120 °C stator) still lack an OEM citation.
+- **Suspension `lat_accel_stddev` proxy** when `SteeringAngle` is absent
+  is still an unvalidated correlation.
+- **Master-score weights** are still chosen by feel; the rebalance in
+  B1 only ensured they sum to 1.00.
+
+---
+
+**Overall Design Philosophy**
+- **Deterministic where possible** (PCS deficit, specific BMS codes, UI_a006, isolation resistance threshold)
+- **Statistical elsewhere** (anomalies, trends) — with sample-count floors
+- **Acknowledgeable** — owners can mute a known alert while service is scheduled
+- **Calendar-aware** — service intervals (filters, fluids, rotation) live alongside statistical anomalies
+- **Zero external services** — everything lives in TimescaleDB + Grafana
+- **Simulator-first testing** — every view can be validated with synthetic failures
+
+This architecture gives owners **earlier, more precise, and cheaper** visibility into the exact failure modes that actually plague 2021+ Model 3/Y vehicles — all while staying completely self-hosted and open-source.
+
+---
 
 ## 12. Dual Motor Diagnostics
 
@@ -168,34 +251,3 @@ The Cybertruck introduces unique hardware: the power tonneau cover, V2L (Powersh
 
 **Owner value**  
 The definitive self-hosted tool for Cybertruck owners, catching known failure modes (tonneau, V2L overheating) before they impact utility.
-
------------|--------|
-| Battery Health | 22 % |
-| Alerts | 15 % |
-| Drivetrain | 14 % |
-| 12V Battery | 10 % |
-| Heat Pump | 10 % |
-| Regen / Brake | 7 % |
-| Air Suspension | 5 % |
-| Dual Motor | 5 % |
-| Cybertruck | 5 % |
-| PCS | 5 % |
-| Suspension | 4 % |
-
-Scores: 0–30 = Healthy (green), 31–60 = Caution (yellow), 61–80 = Warning (orange), 81–100 = Critical (red). Composite "Powertrain" (Drivetrain+Regen+PCS) and "Thermal" (Heat Pump+Battery thermal) scores are also provided for the top-level dashboard Stat row.
-
-**Owner value**  
-At-a-glance “Your car is healthy / yellow / red” with one-click drill-down. This is what turns the project from “cool telemetry” into the definitive owner tool.
-
----
-
-**Overall Design Philosophy**  
-- **Deterministic where possible** (PCS deficit, specific BMS codes, UI_a006)  
-- **Statistical elsewhere** (anomalies, trends)  
-- **Zero external services** — everything lives in TimescaleDB + Grafana  
-- **Simulator-first testing** — every view can be validated with synthetic failures  
-
-This architecture gives owners **earlier, more precise, and cheaper** visibility into the exact failure modes that actually plague 2021+ Model 3/Y vehicles — all while staying completely self-hosted and open-source.
-
----
-
