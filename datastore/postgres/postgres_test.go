@@ -1,8 +1,11 @@
 package postgres
 
 import (
+	"strings"
 	"testing"
 	"time"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/teslamotors/fleet-telemetry/protos"
 )
@@ -190,5 +193,144 @@ func TestKnownVinsCache(t *testing.T) {
 	// Different VIN should still miss
 	if _, ok := p.knownVins.Load("7SAYGDEE9PF000002"); ok {
 		t.Fatal("expected cache miss for different VIN")
+	}
+}
+
+// ------------------------------------------------------------------
+// Ingestion identity and determinism (I1, I3)
+// ------------------------------------------------------------------
+
+func TestStoredVin_PrefersCertificate(t *testing.T) {
+	cases := []struct {
+		cert, payload, want string
+	}{
+		{"5YJ3E1EA7NF000001", "5YJ3E1EA7NF000002", "5YJ3E1EA7NF000001"},
+		{"5YJ3E1EA7NF000001", "", "5YJ3E1EA7NF000001"},
+		{"", "5YJ3E1EA7NF000002", "5YJ3E1EA7NF000002"},
+		{"", "", ""},
+	}
+	for _, tc := range cases {
+		if got := storedVin(tc.cert, tc.payload); got != tc.want {
+			t.Errorf("storedVin(%q, %q) = %q, want %q", tc.cert, tc.payload, got, tc.want)
+		}
+	}
+}
+
+func TestExpandBools_SortedOrder(t *testing.T) {
+	ts := time.Unix(1700000000, 0).UTC()
+	for i := 0; i < 20; i++ {
+		rows := datumToRows(ts, "VIN", "DoorState", &protos.Value_DoorValue{DoorValue: &protos.Doors{DriverFront: true}})
+		want := []string{
+			"DoorState_DriverFront", "DoorState_DriverRear", "DoorState_PassengerFront",
+			"DoorState_PassengerRear", "DoorState_TrunkFront", "DoorState_TrunkRear",
+		}
+		if len(rows) != len(want) {
+			t.Fatalf("got %d rows", len(rows))
+		}
+		for j, r := range rows {
+			if r.field != want[j] {
+				t.Fatalf("iteration %d row %d: got %s, want %s", i, j, r.field, want[j])
+			}
+		}
+	}
+}
+
+// ------------------------------------------------------------------
+// Alert / error idempotency (P3)
+// ------------------------------------------------------------------
+
+func TestAlertRows_TsIsStartedAt(t *testing.T) {
+	msgTime := time.Unix(1700000600, 0).UTC()
+	started := time.Unix(1700000000, 0).UTC()
+	msg := &protos.VehicleAlerts{
+		CreatedAt: timestamppb.New(msgTime),
+		Alerts: []*protos.VehicleAlert{
+			{Name: "BMS_a001", StartedAt: timestamppb.New(started)},
+			{Name: "NoStart_a001"},
+		},
+	}
+	rows := alertRows(msg)
+	if len(rows) != 2 {
+		t.Fatalf("got %d rows, want 2", len(rows))
+	}
+	if !rows[0].ts.Equal(started) {
+		t.Errorf("ts = %v, want started_at %v", rows[0].ts, started)
+	}
+	if rows[0].startedAt == nil || !rows[0].startedAt.Equal(started) {
+		t.Errorf("startedAt = %v", rows[0].startedAt)
+	}
+	if !rows[1].ts.Equal(msgTime) {
+		t.Errorf("alert without started_at: ts = %v, want message time %v", rows[1].ts, msgTime)
+	}
+	if rows[1].startedAt != nil || rows[1].endedAt != nil {
+		t.Errorf("absent timestamps must stay nil: %+v", rows[1])
+	}
+}
+
+func TestAlertRows_ResendIsStable(t *testing.T) {
+	started := time.Unix(1700000000, 0).UTC()
+	mk := func(msgSec int64) []alertRow {
+		return alertRows(&protos.VehicleAlerts{
+			CreatedAt: timestamppb.New(time.Unix(msgSec, 0)),
+			Alerts:    []*protos.VehicleAlert{{Name: "DI_a005", StartedAt: timestamppb.New(started)}},
+		})
+	}
+	a, b := mk(1700000100), mk(1700009999)
+	if !a[0].ts.Equal(b[0].ts) {
+		t.Fatalf("resend in a later message must produce the same ts: %v vs %v", a[0].ts, b[0].ts)
+	}
+}
+
+func TestAlertRows_MergesDuplicatesKeepingEnd(t *testing.T) {
+	started := time.Unix(1700000000, 0).UTC()
+	ended := time.Unix(1700000300, 0).UTC()
+	msg := &protos.VehicleAlerts{
+		CreatedAt: timestamppb.New(time.Unix(1700000400, 0)),
+		Alerts: []*protos.VehicleAlert{
+			{Name: "CP_a007", StartedAt: timestamppb.New(started), EndedAt: timestamppb.New(ended)},
+			{Name: "CP_a007", StartedAt: timestamppb.New(started)},
+		},
+	}
+	rows := alertRows(msg)
+	if len(rows) != 1 {
+		t.Fatalf("got %d rows, want 1", len(rows))
+	}
+	if rows[0].endedAt == nil || !rows[0].endedAt.Equal(ended) {
+		t.Fatalf("ended_at lost in merge: %v", rows[0].endedAt)
+	}
+}
+
+func TestErrorRows_TsIsCreatedAt(t *testing.T) {
+	created := time.Unix(1700000000, 0).UTC()
+	msgTime := time.Unix(1700000500, 0).UTC()
+	rows := errorRows(&protos.VehicleErrors{
+		CreatedAt: timestamppb.New(msgTime),
+		Errors: []*protos.VehicleError{
+			{Name: "err_a", CreatedAt: timestamppb.New(created), Body: "x"},
+			{Name: "err_a", CreatedAt: timestamppb.New(created), Body: "y"},
+			{Name: "err_b"},
+		},
+	})
+	if len(rows) != 2 {
+		t.Fatalf("got %d rows, want 2", len(rows))
+	}
+	if !rows[0].ts.Equal(created) || rows[0].body != "y" {
+		t.Errorf("row 0 = %+v", rows[0])
+	}
+	if !rows[1].ts.Equal(msgTime) {
+		t.Errorf("error without created_at: ts = %v, want %v", rows[1].ts, msgTime)
+	}
+}
+
+func TestUpsertSQL_ConflictTargets(t *testing.T) {
+	// The ON CONFLICT targets must match the unique indexes created by
+	// deploy/sql/034_alert_dedup.sql.
+	for name, q := range map[string]string{"alerts": alertUpsertSQL, "errors": errorUpsertSQL} {
+		if !strings.Contains(q, "ON CONFLICT (vin, name, ts)") {
+			t.Errorf("%s upsert lost its conflict target", name)
+		}
+	}
+	if !strings.Contains(alertUpsertSQL, "COALESCE(EXCLUDED.ended_at, vehicle_alerts.ended_at)") {
+		t.Error("alert upsert must never reopen a closed alert")
 	}
 }

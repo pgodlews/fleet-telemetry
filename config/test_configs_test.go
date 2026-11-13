@@ -313,3 +313,38 @@ const TestMultipleTxTypeReliableAckConfig = `
 	}
 }
 `
+
+// Rate limiting enabled with an interval of zero: the limiter would never
+// reject anything.
+const TestZeroIntervalRateLimitConfig = `{
+	"host": "127.0.0.1",
+	"port": 443,
+	"status_port": 8080,
+	"namespace": "tesla_telemetry",
+	"rate_limit": {
+		"enabled": true,
+		"message_limit": 1000
+	},
+	"records": {
+		"V": ["logger"]
+	}
+}
+`
+
+// Rate limiting enabled with a non-positive limit: the underlying limiter
+// dereferences an empty list on the first message.
+const TestZeroMessageLimitRateLimitConfig = `{
+	"host": "127.0.0.1",
+	"port": 443,
+	"status_port": 8080,
+	"namespace": "tesla_telemetry",
+	"rate_limit": {
+		"enabled": true,
+		"message_interval_time": 30,
+		"message_limit": 0
+	},
+	"records": {
+		"V": ["logger"]
+	}
+}
+`

@@ -37,6 +37,15 @@ var (
 
 const (
 	connectitivityTopic = "connectivity"
+
+	// HandshakeTimeout caps how long a peer may take to send its request
+	// headers before the websocket upgrade.
+	HandshakeTimeout = 10 * time.Second
+
+	// IdleTimeout caps how long a non-upgraded keep-alive connection (e.g. a
+	// /status caller) may sit idle. Hijacked websocket connections are not
+	// affected.
+	IdleTimeout = 60 * time.Second
 )
 
 // ServerMetrics stores metrics reported from this package
@@ -81,7 +90,16 @@ func InitServer(c *config.Config, airbrakeHandler *airbrake.Handler, producerRul
 	mux.HandleFunc("/", socketServer.ServeBinaryWs(c))
 	mux.Handle("/status", socketServer.airbrakeHandler.WithReporting(http.HandlerFunc(socketServer.Status())))
 
-	server := &http.Server{Addr: fmt.Sprintf("%v:%v", c.Host, c.Port), Handler: serveHTTPWithLogs(mux, logger)}
+	server := &http.Server{
+		Addr:    fmt.Sprintf("%v:%v", c.Host, c.Port),
+		Handler: serveHTTPWithLogs(mux, logger),
+		// The listener is public: cap how long a peer may take to send request
+		// headers / complete the websocket handshake so idle half-open
+		// connections cannot accumulate. Not ReadTimeout/WriteTimeout — those
+		// would also apply to the long-lived websocket connections.
+		ReadHeaderTimeout: HandshakeTimeout,
+		IdleTimeout:       IdleTimeout,
+	}
 	go socketServer.handleAcks()
 	return server, socketServer, nil
 }

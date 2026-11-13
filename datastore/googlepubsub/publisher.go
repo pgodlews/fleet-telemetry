@@ -28,6 +28,9 @@ type Producer struct {
 	airbrakeHandler    *airbrake.Handler
 	ackChan            chan (*telemetry.Record)
 	reliableAckTxTypes map[string]interface{}
+
+	topicsMu sync.Mutex
+	topics   map[string]*pubsub.Topic
 }
 
 // Metrics stores metrics reported from this package
@@ -74,6 +77,7 @@ func NewProducer(prometheusEnabled bool, projectID string, namespace string, met
 		airbrakeHandler:    airbrakeHandler,
 		ackChan:            ackChan,
 		reliableAckTxTypes: reliableAckTxTypes,
+		topics:             make(map[string]*pubsub.Topic),
 	}
 	p.logger.ActivityLog("pubsub_registered", logrus.LogInfo{"project": projectID, "namespace": namespace})
 	return p, nil
@@ -101,7 +105,7 @@ func (p *Producer) Produce(entry *telemetry.Record) {
 	ctx := context.Background()
 
 	topicName := telemetry.BuildTopicName(p.namespace, entry.TxType)
-	pubsubTopic := p.pubsubClient.Topic(topicName)
+	pubsubTopic := p.topic(topicName)
 	logInfo := logrus.LogInfo{"topic_name": topicName, "txid": entry.Txid}
 
 	entry.ProduceTime = time.Now()
@@ -121,8 +125,38 @@ func (p *Producer) Produce(entry *telemetry.Record) {
 
 }
 
-// Close the producer
+// topic returns the cached publisher handle for topicName, creating it on
+// first use.
+//
+// Client.Topic allocates a publisher with its own batching configuration and
+// goroutines, and it is only released by Stop. Calling it per record threw one
+// away on every message, so publisher resources and batching state grew with
+// traffic and nothing was ever drained.
+func (p *Producer) topic(topicName string) *pubsub.Topic {
+	p.topicsMu.Lock()
+	defer p.topicsMu.Unlock()
+	if t, ok := p.topics[topicName]; ok {
+		return t
+	}
+	t := p.pubsubClient.Topic(topicName)
+	p.topics[topicName] = t
+	return t
+}
+
+// Close stops every publisher (flushing anything still batched) and then the
+// client.
 func (p *Producer) Close() error {
+	p.topicsMu.Lock()
+	topics := make([]*pubsub.Topic, 0, len(p.topics))
+	for _, t := range p.topics {
+		topics = append(topics, t)
+	}
+	p.topics = make(map[string]*pubsub.Topic)
+	p.topicsMu.Unlock()
+
+	for _, t := range topics {
+		t.Stop()
+	}
 	return p.pubsubClient.Close()
 }
 

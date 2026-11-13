@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
 
@@ -72,6 +73,25 @@ func validateConfig(config *Config) error {
 	if len(config.VinsToTrack()) > maxVinsToTrack {
 		return fmt.Errorf("set the value of `vins_signal_tracking_enabled` less than %d unique vins", maxVinsToTrack)
 	}
+	return config.configureRateLimit()
+}
+
+// configureRateLimit converts the JSON `message_interval_time` (seconds) into
+// the duration the socket actually rate limits on, and rejects bounds the
+// underlying limiter cannot honor. Without this the duration stays zero and
+// the limit never triggers; a non-positive limit panics the limiter on the
+// first message.
+func (c *Config) configureRateLimit() error {
+	if c.RateLimit == nil || !c.RateLimit.Enabled {
+		return nil
+	}
+	if c.RateLimit.MessageLimit <= 0 {
+		return fmt.Errorf("rate_limit.message_limit must be greater than 0 when rate limiting is enabled, got %d", c.RateLimit.MessageLimit)
+	}
+	if c.RateLimit.MessageInterval <= 0 {
+		return fmt.Errorf("rate_limit.message_interval_time must be greater than 0 seconds when rate limiting is enabled, got %d", c.RateLimit.MessageInterval)
+	}
+	c.RateLimit.MessageIntervalTimeSecond = time.Duration(c.RateLimit.MessageInterval) * time.Second
 	return nil
 }
 

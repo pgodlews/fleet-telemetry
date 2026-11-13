@@ -7,11 +7,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	logrus "github.com/teslamotors/fleet-telemetry/logger"
 	"github.com/teslamotors/fleet-telemetry/metrics"
@@ -150,6 +152,30 @@ func (p *Producer) Produce(rec *telemetry.Record) {
 	p.ProcessReliableAck(rec)
 }
 
+// writeTimeout bounds a single database operation. Ingestion runs on a
+// background context, so without a deadline one stuck query or lock holds a
+// pool connection — and the socket waiting on its reliable ACK — indefinitely.
+const writeTimeout = 30 * time.Second
+
+// opCtx derives a deadline-bounded context for one database operation.
+func (p *Producer) opCtx() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(p.ctx, writeTimeout)
+}
+
+// eventTime returns the record's own timestamp, falling back to receive time
+// when the vehicle did not send a usable one.
+//
+// A nil *timestamppb.Timestamp is not detectable via AsTime().IsZero(): nil
+// decodes to the Unix epoch, whose IsZero() is false. Left unchecked, missing
+// timestamps produce 1970 rows that collide on the telemetry primary key and
+// sit outside every diagnostic and retention window.
+func eventTime(ts *timestamppb.Timestamp) time.Time {
+	if ts == nil || !ts.IsValid() || (ts.GetSeconds() == 0 && ts.GetNanos() == 0) {
+		return time.Now().UTC()
+	}
+	return ts.AsTime()
+}
+
 // ============================================================
 // Vehicle data ("V")
 // ============================================================
@@ -171,18 +197,26 @@ func (p *Producer) writePayload(rec *telemetry.Record) error {
 	return p.insertPayload(msg, rec.Vin)
 }
 
+// storedVin picks the VIN a vehicle payload is stored under. The certificate
+// identity (rec.Vin) wins whenever it is present: it is what the TLS client
+// certificate proves, while msg.Vin is whatever the peer put in the payload.
+// telemetry/record.go already overwrites msg.Vin with rec.Vin for "V"
+// records; this keeps the dispatcher correct on its own, as writeConnectivity
+// is. The payload VIN is used only when no certificate identity is known
+// (tests and tools that drive insertPayload directly).
+func storedVin(certVin, payloadVin string) string {
+	if certVin != "" {
+		return certVin
+	}
+	return payloadVin
+}
+
 // insertPayload writes a parsed *protos.Payload to TimescaleDB. Split out
 // from writePayload so tests can drive it directly without constructing a
 // telemetry.Record (which requires a BinarySerializer).
-func (p *Producer) insertPayload(msg *protos.Payload, vinFallback string) error {
-	ts := msg.GetCreatedAt().AsTime()
-	if ts.IsZero() {
-		ts = time.Now().UTC()
-	}
-	vin := msg.GetVin()
-	if vin == "" {
-		vin = vinFallback
-	}
+func (p *Producer) insertPayload(msg *protos.Payload, certVin string) error {
+	ts := eventTime(msg.GetCreatedAt())
+	vin := storedVin(certVin, msg.GetVin())
 
 	rows := make([]telemetryRow, 0, len(msg.GetData()))
 	var carType string
@@ -208,22 +242,39 @@ func (p *Producer) insertPayload(msg *protos.Payload, vinFallback string) error 
 
 	// Detect vehicle metadata once per VIN. CarType is authoritative;
 	// VIN parsing is a deterministic fallback handled by the SQL function.
+	//
+	// The VIN is cached only after an upsert that actually succeeded and that
+	// carried CarType. Caching before the call meant a transient failure, a
+	// not-yet-deployed function, or simply a first payload that happened not
+	// to include CarType permanently suppressed every later attempt for that
+	// VIN until the process restarted.
 	if _, ok := p.knownVins.Load(vin); !ok {
-		p.knownVins.Store(vin, struct{}{})
-		if _, err := p.pool.Exec(p.ctx,
-			"SELECT upsert_vehicle_from_telemetry($1, $2)", vin, carType,
-		); err != nil {
+		ctx, cancel := p.opCtx()
+		_, err := p.pool.Exec(ctx,
+			"SELECT upsert_vehicle_from_telemetry($1, $2)", vin, carType)
+		cancel()
+		switch {
+		case err != nil:
 			// Non-fatal: telemetry must still be written even if metadata
-			// upsert fails (e.g. function not yet deployed).
+			// upsert fails (e.g. function not yet deployed). Retried on the
+			// next payload for this VIN.
 			p.logger.Log(logrus.DEBUG, "vehicle_metadata_upsert_skipped",
 				logrus.LogInfo{"vin": vin, "err": err.Error()})
+		case carType == "":
+			// Recorded, but VIN-derived only. Keep retrying until an
+			// authoritative CarType observation arrives.
+		default:
+			p.knownVins.Store(vin, struct{}{})
 		}
 	}
 
 	// pgx CopyFrom can't write geography columns from text without a staging
 	// table, so use a SendBatch of upserts. For 30-second streaming volumes
 	// this is well under a millisecond per row.
-	conn, err := p.pool.Acquire(p.ctx)
+	batchCtx, cancelBatch := p.opCtx()
+	defer cancelBatch()
+
+	conn, err := p.pool.Acquire(batchCtx)
 	if err != nil {
 		return err
 	}
@@ -244,12 +295,18 @@ func (p *Producer) insertPayload(msg *protos.Payload, vinFallback string) error 
 				geo_value = COALESCE(EXCLUDED.geo_value, telemetry.geo_value)
 		`, r.ts, r.vin, r.field, r.numValue, r.strValue, geoArg)
 	}
-	br := conn.SendBatch(p.ctx, batch)
-	defer br.Close()
+	br := conn.SendBatch(batchCtx, batch)
 	for range rows {
 		if _, err := br.Exec(); err != nil {
+			_ = br.Close()
 			return err
 		}
+	}
+	// pgx completes and drains the implicit batch transaction inside Close.
+	// A final transaction or connection error surfaces only here, so it must
+	// be checked before Produce reports success and sends a reliable ACK.
+	if err := br.Close(); err != nil {
+		return err
 	}
 	metricsRegistry.rowCount.Add(int64(len(rows)), map[string]string{"record_type": "V"})
 	return nil
@@ -336,10 +393,17 @@ func boolStr(b bool) string {
 	return "false"
 }
 
+// expandBools emits one row per leaf in sorted key order, so a batch is
+// deterministic (map iteration order is not) and tests can assert on it.
 func expandBools(ts time.Time, vin, baseField string, m map[string]bool) []telemetryRow {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
 	out := make([]telemetryRow, 0, len(m))
-	for k, b := range m {
-		s := boolStr(b)
+	for _, k := range keys {
+		s := boolStr(m[k])
 		out = append(out, telemetryRow{
 			ts:       ts,
 			vin:      vin,
@@ -447,35 +511,132 @@ func stringerEnum(v interface{}) (string, bool) {
 // Side-channel records: alerts / errors / connectivity
 // ============================================================
 
+// alertUpsertSQL makes alert writes idempotent. vehicle_alerts is a
+// hypertable, so its unique index (034_alert_dedup.sql) has to include the
+// partitioning column; ts is therefore the alert's own started_at, which is
+// stable across resends, rather than the time of the message that carried it.
+// A later message for the same instance that carries ended_at closes the row
+// instead of inserting another one; a resend without ended_at never reopens
+// a closed row.
+const alertUpsertSQL = `
+	INSERT INTO vehicle_alerts (ts, vin, name, audience, started_at, ended_at)
+	VALUES ($1, $2, $3, $4, $5, $6)
+	ON CONFLICT (vin, name, ts) DO UPDATE SET
+		ended_at   = COALESCE(EXCLUDED.ended_at, vehicle_alerts.ended_at),
+		audience   = COALESCE(NULLIF(EXCLUDED.audience, ''), vehicle_alerts.audience),
+		started_at = COALESCE(vehicle_alerts.started_at, EXCLUDED.started_at)
+`
+
+// errorUpsertSQL is the vehicle_errors counterpart: ts is the error's own
+// created_at, so a resent error lands on the same row.
+const errorUpsertSQL = `
+	INSERT INTO vehicle_errors (ts, vin, name, body, tags, created_at)
+	VALUES ($1, $2, $3, $4, $5, $6)
+	ON CONFLICT (vin, name, ts) DO UPDATE SET
+		body = COALESCE(EXCLUDED.body, vehicle_errors.body),
+		tags = COALESCE(EXCLUDED.tags, vehicle_errors.tags)
+`
+
+// optionalTime converts a protobuf timestamp to *time.Time, treating a nil
+// or zero (epoch) timestamp as absent.
+func optionalTime(ts *timestamppb.Timestamp) *time.Time {
+	if ts == nil || !ts.IsValid() || (ts.GetSeconds() == 0 && ts.GetNanos() == 0) {
+		return nil
+	}
+	t := ts.AsTime()
+	return &t
+}
+
+// rowTime is the deterministic ts for an alert or error row: the event's own
+// timestamp when present, otherwise the message time.
+func rowTime(own *time.Time, msgTime time.Time) time.Time {
+	if own != nil {
+		return *own
+	}
+	return msgTime
+}
+
+// alertRow is one vehicle_alerts row as written by writeAlerts.
+type alertRow struct {
+	ts        time.Time
+	name      string
+	audience  string
+	startedAt *time.Time
+	endedAt   *time.Time
+}
+
+// alertRows converts a VehicleAlerts message into rows. Within one message the
+// same (name, ts) can appear more than once; those are merged here, because
+// a single INSERT ... ON CONFLICT batch cannot touch one row twice in a way
+// that keeps the closing ended_at.
+func alertRows(msg *protos.VehicleAlerts) []alertRow {
+	msgTime := eventTime(msg.GetCreatedAt())
+	out := make([]alertRow, 0, len(msg.GetAlerts()))
+	index := map[string]int{}
+	for _, a := range msg.GetAlerts() {
+		if a == nil {
+			continue
+		}
+		startedAt := optionalTime(a.GetStartedAt())
+		r := alertRow{
+			ts:        rowTime(startedAt, msgTime),
+			name:      a.GetName(),
+			audience:  audienceList(a),
+			startedAt: startedAt,
+			endedAt:   optionalTime(a.GetEndedAt()),
+		}
+		key := r.name + "\x00" + r.ts.UTC().Format(time.RFC3339Nano)
+		if i, ok := index[key]; ok {
+			if r.endedAt != nil {
+				out[i].endedAt = r.endedAt
+			}
+			if out[i].audience == "" {
+				out[i].audience = r.audience
+			}
+			continue
+		}
+		index[key] = len(out)
+		out = append(out, r)
+	}
+	return out
+}
+
 func (p *Producer) writeAlerts(rec *telemetry.Record) error {
 	msg, ok := rec.GetProtoMessage().(*protos.VehicleAlerts)
 	if !ok || msg == nil {
 		return fmt.Errorf("expected *protos.VehicleAlerts, got %T", rec.GetProtoMessage())
 	}
-	now := msg.GetCreatedAt().AsTime()
-	if now.IsZero() {
-		now = time.Now().UTC()
+	return p.insertAlerts(msg, rec.Vin)
+}
+
+// insertAlerts upserts every alert of one message. One batch, one implicit
+// transaction: a record's alerts land completely or not at all.
+func (p *Producer) insertAlerts(msg *protos.VehicleAlerts, vin string) error {
+	batch := &pgx.Batch{}
+	for _, r := range alertRows(msg) {
+		batch.Queue(alertUpsertSQL, r.ts, vin, r.name, r.audience, r.startedAt, r.endedAt)
 	}
-	vin := rec.Vin
-	for _, a := range msg.GetAlerts() {
-		var startedAt, endedAt *time.Time
-		if t := a.GetStartedAt(); t != nil {
-			tt := t.AsTime()
-			startedAt = &tt
-		}
-		if t := a.GetEndedAt(); t != nil {
-			tt := t.AsTime()
-			endedAt = &tt
-		}
-		_, err := p.pool.Exec(p.ctx, `
-			INSERT INTO vehicle_alerts (ts, vin, name, audience, started_at, ended_at)
-			VALUES ($1, $2, $3, $4, $5, $6)
-		`, now, vin, a.GetName(), audienceList(a), startedAt, endedAt)
-		if err != nil {
+	return p.sendBatch(batch)
+}
+
+// sendBatch runs every queued statement under one deadline-bounded implicit
+// transaction and reports the completion error, which pgx only surfaces from
+// Close.
+func (p *Producer) sendBatch(batch *pgx.Batch) error {
+	if batch.Len() == 0 {
+		return nil
+	}
+	ctx, cancel := p.opCtx()
+	defer cancel()
+
+	br := p.pool.SendBatch(ctx, batch)
+	for i := 0; i < batch.Len(); i++ {
+		if _, err := br.Exec(); err != nil {
+			_ = br.Close()
 			return err
 		}
 	}
-	return nil
+	return br.Close()
 }
 
 func audienceList(a *protos.VehicleAlert) string {
@@ -496,31 +657,60 @@ func audienceList(a *protos.VehicleAlert) string {
 	return out
 }
 
+// errorRow is one vehicle_errors row as written by writeErrors.
+type errorRow struct {
+	ts        time.Time
+	name      string
+	body      string
+	tags      string
+	createdAt *time.Time
+}
+
+// errorRows converts a VehicleErrors message into rows, merging duplicates of
+// the same (name, ts) within one message (last one wins).
+func errorRows(msg *protos.VehicleErrors) []errorRow {
+	msgTime := eventTime(msg.GetCreatedAt())
+	out := make([]errorRow, 0, len(msg.GetErrors()))
+	index := map[string]int{}
+	for _, e := range msg.GetErrors() {
+		if e == nil {
+			continue
+		}
+		createdAt := optionalTime(e.GetCreatedAt())
+		tagsJSON, _ := json.Marshal(e.GetTags())
+		r := errorRow{
+			ts:        rowTime(createdAt, msgTime),
+			name:      e.GetName(),
+			body:      e.GetBody(),
+			tags:      string(tagsJSON),
+			createdAt: createdAt,
+		}
+		key := r.name + "\x00" + r.ts.UTC().Format(time.RFC3339Nano)
+		if i, ok := index[key]; ok {
+			out[i] = r
+			continue
+		}
+		index[key] = len(out)
+		out = append(out, r)
+	}
+	return out
+}
+
 func (p *Producer) writeErrors(rec *telemetry.Record) error {
 	msg, ok := rec.GetProtoMessage().(*protos.VehicleErrors)
 	if !ok || msg == nil {
 		return fmt.Errorf("expected *protos.VehicleErrors, got %T", rec.GetProtoMessage())
 	}
-	now := msg.GetCreatedAt().AsTime()
-	if now.IsZero() {
-		now = time.Now().UTC()
+	return p.insertErrors(msg, rec.Vin)
+}
+
+// insertErrors upserts every error of one message in one batch.
+func (p *Producer) insertErrors(msg *protos.VehicleErrors, vin string) error {
+	batch := &pgx.Batch{}
+	for _, r := range errorRows(msg) {
+		batch.Queue(errorUpsertSQL, r.ts, vin, r.name, r.body, r.tags, r.createdAt)
 	}
-	for _, e := range msg.GetErrors() {
-		var createdAt *time.Time
-		if t := e.GetCreatedAt(); t != nil {
-			tt := t.AsTime()
-			createdAt = &tt
-		}
-		tagsJSON, _ := json.Marshal(e.GetTags())
-		_, err := p.pool.Exec(p.ctx, `
-			INSERT INTO vehicle_errors (ts, vin, name, body, tags, created_at)
-			VALUES ($1, $2, $3, $4, $5, $6)
-		`, now, rec.Vin, e.GetName(), e.GetBody(), string(tagsJSON), createdAt)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return p.sendBatch(batch)
 }
 
 func (p *Producer) writeConnectivity(rec *telemetry.Record) error {
@@ -528,14 +718,15 @@ func (p *Producer) writeConnectivity(rec *telemetry.Record) error {
 	if !ok || msg == nil {
 		return fmt.Errorf("expected *protos.VehicleConnectivity, got %T", rec.GetProtoMessage())
 	}
-	ts := msg.GetCreatedAt().AsTime()
-	if ts.IsZero() {
-		ts = time.Now().UTC()
-	}
-	_, err := p.pool.Exec(p.ctx, `
+	ts := eventTime(msg.GetCreatedAt())
+	// rec.Vin is the certificate identity; msg.GetVin() is whatever the peer
+	// put in the payload.
+	ctx, cancel := p.opCtx()
+	defer cancel()
+	_, err := p.pool.Exec(ctx, `
 		INSERT INTO vehicle_connectivity (ts, vin, status, network_interface, reason)
 		VALUES ($1, $2, $3, $4, $5)
-	`, ts, msg.GetVin(), msg.GetStatus().String(), msg.GetNetworkInterface(), "")
+	`, ts, rec.Vin, msg.GetStatus().String(), msg.GetNetworkInterface(), "")
 	return err
 }
 

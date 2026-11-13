@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"time"
 
 	confluent "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 
@@ -22,7 +23,7 @@ var _ = Describe("Test application config initialization", func() {
 			StatusPort:         8080,
 			Namespace:          "tesla_telemetry",
 			TLS:                &TLS{CAFile: "tesla.ca", ServerCert: "your_own_cert.crt", ServerKey: "your_own_key.key"},
-			RateLimit:          &RateLimit{Enabled: true, MessageLimit: 1000, MessageInterval: 30},
+			RateLimit:          &RateLimit{Enabled: true, MessageLimit: 1000, MessageInterval: 30, MessageIntervalTimeSecond: 30 * time.Second},
 			ReliableAckSources: map[string]telemetry.Dispatcher{"V": telemetry.Kafka},
 			Kafka: &confluent.ConfigMap{
 				"bootstrap.servers":            "some.broker1:9093,some.broker1:9093",
@@ -78,6 +79,22 @@ var _ = Describe("Test application config initialization", func() {
 	It("returns an error if config is not appropriate", func() {
 		_, err := loadTestApplicationConfig(BadTopicConfig)
 		Expect(err).To(MatchError("invalid character '}' looking for beginning of object key string"))
+	})
+
+	It("converts the rate limit interval into a duration", func() {
+		loadedConfig, err := loadTestApplicationConfig(TestConfig)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(loadedConfig.RateLimit.MessageIntervalTimeSecond).To(Equal(30 * time.Second))
+	})
+
+	It("rejects a rate limit with a non-positive interval", func() {
+		_, err := loadTestApplicationConfig(TestZeroIntervalRateLimitConfig)
+		Expect(err).To(MatchError(ContainSubstring("rate_limit.message_interval_time must be greater than 0")))
+	})
+
+	It("rejects a rate limit with a non-positive message limit", func() {
+		_, err := loadTestApplicationConfig(TestZeroMessageLimitRateLimitConfig)
+		Expect(err).To(MatchError(ContainSubstring("rate_limit.message_limit must be greater than 0")))
 	})
 })
 

@@ -13,12 +13,31 @@ test/integration/test-certs/
 .env
 deploy/fleet-telemetry/config.json
 deploy/tesla-keys.env
+deploy/tesla-notify.env
 
 # Local working docs / IDE configs
 PRE_GITHUB.MD
 .claude/
 deploy/DEPLOYMENT_*.md
-deploy/simulator-linux-amd64
+deploy/notify-config.json
 
-simulator
-tools/simulator/simulator
+# Go build artifacts — cross-compiled binaries for any OS/arch, and local builds.
+# Keep only source code in the repo; see deploy/README.md for build instructions.
+*.exe
+*-linux-amd64
+*-linux-arm64
+*-darwin-amd64
+*-darwin-arm64
+*-windows-amd64
+/fleet-telemetry
+/simulator
+/tools/simulator/simulator
+/tools/notify/tesla-notify
+
+# Local builds and host-side state (O2)
+/notify
+/tools/notify/notify
+attachments/
+*.bak-*
+deploy/.tls-chain-baseline
+deploy/tesla-weekly-report.sh

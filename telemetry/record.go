@@ -190,6 +190,11 @@ func (record *Record) applyProtoRecordTransforms() error {
 		if err != nil {
 			return err
 		}
+		// Same as alerts/errors/V: the stored identity is the one the client
+		// certificate proves, not whatever the payload claims. Server-generated
+		// connectivity events already set Vin to the device ID, so this is a
+		// no-op for them and a correction for vehicle-submitted ones.
+		message.Vin = record.Vin
 		record.PayloadBytes, err = proto.Marshal(message)
 		record.protoMessage = message
 		return err

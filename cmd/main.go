@@ -1,8 +1,14 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	_ "go.uber.org/automaxprocs"
 
@@ -13,6 +19,10 @@ import (
 	"github.com/teslamotors/fleet-telemetry/server/monitoring"
 	"github.com/teslamotors/fleet-telemetry/server/streaming"
 )
+
+// shutdownGrace is how long an orderly shutdown may take before open
+// connections are dropped so publishers still get closed.
+const shutdownGrace = 20 * time.Second
 
 func main() {
 	var err error
@@ -47,7 +57,9 @@ func main() {
 			}
 		}()
 	}
-	panic(startServer(config, airbrakeNotifier, logger))
+	if err := startServer(config, airbrakeNotifier, logger); err != nil {
+		panic(err)
+	}
 }
 
 func startServer(config *config.Config, airbrakeNotifier *gobrake.Notifier, logger *logrus.Logger) (err error) {
@@ -76,7 +88,39 @@ func startServer(config *config.Config, airbrakeNotifier *gobrake.Notifier, logg
 		return err
 	}
 
+	// Coordinated shutdown. Without this, SIGTERM (how the container stops)
+	// killed the process outright: connections were cut mid-message and
+	// producers never got their Close, so anything a dispatcher still held
+	// unflushed was lost. Producers are closed below on the normal return
+	// path once Shutdown has stopped accepting and drained in-flight work.
+	shutdownDone := make(chan struct{})
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		defer close(shutdownDone)
+		sig, ok := <-sigCh
+		if !ok {
+			return
+		}
+		logger.ActivityLog("shutdown_signal", logrus.LogInfo{"signal": sig.String()})
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
+		defer cancel()
+		if shutdownErr := server.Shutdown(ctx); shutdownErr != nil {
+			logger.ErrorLog("server_shutdown_error", shutdownErr, nil)
+			// Deadline passed with sockets still open — drop them so the
+			// producer Close calls below still run.
+			_ = server.Close()
+		}
+	}()
+
 	err = server.ListenAndServeTLS(config.TLS.ServerCert, config.TLS.ServerKey)
+	if errors.Is(err, http.ErrServerClosed) {
+		err = nil
+	}
+	signal.Stop(sigCh)
+	close(sigCh)
+	<-shutdownDone
+
 	for dispatcher, producer := range dispatchers {
 		logger.ActivityLog("attempting_to_close", logrus.LogInfo{"dispatcher": dispatcher})
 		// We don't care if this fails. If it does, we'll just continue on.

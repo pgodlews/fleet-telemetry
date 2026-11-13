@@ -198,3 +198,122 @@ func TestProducer_DoorValueExpands(t *testing.T) {
 		}
 	}
 }
+
+// TestProducer_AlertResendIsIdempotent needs deploy/sql/034_alert_dedup.sql:
+// the same alert sent five times, then once more with ended_at, must leave
+// exactly one closed row.
+func TestProducer_AlertResendIsIdempotent(t *testing.T) {
+	const vin = "INTEG_TESTVIN_003"
+	p := newTestProducer(t)
+	pool, _ := pgxpool.New(context.Background(), dsn(t))
+	defer pool.Close()
+	if _, err := pool.Exec(context.Background(), `DELETE FROM vehicle_alerts WHERE vin=$1`, vin); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+
+	started := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
+	ended := started.Add(30 * time.Minute)
+	for i := 0; i < 5; i++ {
+		msg := &protos.VehicleAlerts{
+			CreatedAt: timestamppb.New(started.Add(time.Duration(i) * time.Minute)),
+			Alerts: []*protos.VehicleAlert{{
+				Name:      "BMS_a001",
+				StartedAt: timestamppb.New(started),
+				Audiences: []protos.Audience{protos.Audience_Customer},
+			}},
+		}
+		if err := p.insertAlerts(msg, vin); err != nil {
+			t.Fatalf("insert %d: %v", i, err)
+		}
+	}
+	closing := &protos.VehicleAlerts{
+		CreatedAt: timestamppb.New(ended),
+		Alerts:    []*protos.VehicleAlert{{Name: "BMS_a001", StartedAt: timestamppb.New(started), EndedAt: timestamppb.New(ended)}},
+	}
+	if err := p.insertAlerts(closing, vin); err != nil {
+		t.Fatalf("closing insert: %v", err)
+	}
+	// A late resend of the open form must not reopen it.
+	reopen := &protos.VehicleAlerts{
+		CreatedAt: timestamppb.New(ended.Add(time.Minute)),
+		Alerts:    []*protos.VehicleAlert{{Name: "BMS_a001", StartedAt: timestamppb.New(started)}},
+	}
+	if err := p.insertAlerts(reopen, vin); err != nil {
+		t.Fatalf("late resend: %v", err)
+	}
+
+	var n int
+	var gotEnded *time.Time
+	var audience string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT COUNT(*), MAX(ended_at), MAX(audience) FROM vehicle_alerts WHERE vin=$1`, vin).Scan(&n, &gotEnded, &audience); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("rows = %d, want 1", n)
+	}
+	if gotEnded == nil || !gotEnded.Equal(ended) {
+		t.Fatalf("ended_at = %v, want %v", gotEnded, ended)
+	}
+	if audience != "Customer" {
+		t.Fatalf("audience = %q, want Customer", audience)
+	}
+}
+
+// TestProducer_ErrorResendIsIdempotent: same error resent keeps one row.
+func TestProducer_ErrorResendIsIdempotent(t *testing.T) {
+	const vin = "INTEG_TESTVIN_004"
+	p := newTestProducer(t)
+	pool, _ := pgxpool.New(context.Background(), dsn(t))
+	defer pool.Close()
+	if _, err := pool.Exec(context.Background(), `DELETE FROM vehicle_errors WHERE vin=$1`, vin); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	created := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
+	for i := 0; i < 3; i++ {
+		msg := &protos.VehicleErrors{
+			CreatedAt: timestamppb.New(created.Add(time.Duration(i) * time.Minute)),
+			Errors:    []*protos.VehicleError{{Name: "test_error", Body: "body", CreatedAt: timestamppb.New(created)}},
+		}
+		if err := p.insertErrors(msg, vin); err != nil {
+			t.Fatalf("insert %d: %v", i, err)
+		}
+	}
+	var n int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT COUNT(*) FROM vehicle_errors WHERE vin=$1`, vin).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("rows = %d, want 1", n)
+	}
+}
+
+// TestProducer_PayloadStoredUnderCertificateVin: a payload claiming another
+// VIN is stored under the certificate identity.
+func TestProducer_PayloadStoredUnderCertificateVin(t *testing.T) {
+	const certVin = "INTEG_TESTVIN_005"
+	const claimed = "INTEG_TESTVIN_006"
+	cleanVin(t, certVin)
+	cleanVin(t, claimed)
+	p := newTestProducer(t)
+	ts := time.Now().UTC().Truncate(time.Second)
+	payload := &protos.Payload{
+		Vin:       claimed,
+		CreatedAt: timestamppb.New(ts),
+		Data: []*protos.Datum{
+			{Key: protos.Field_BatteryLevel, Value: &protos.Value{Value: &protos.Value_FloatValue{FloatValue: 50}}},
+		},
+	}
+	if err := p.insertPayload(payload, certVin); err != nil {
+		t.Fatalf("insertPayload: %v", err)
+	}
+	pool, _ := pgxpool.New(context.Background(), dsn(t))
+	defer pool.Close()
+	var nCert, nClaimed int
+	_ = pool.QueryRow(context.Background(), `SELECT COUNT(*) FROM telemetry WHERE vin=$1`, certVin).Scan(&nCert)
+	_ = pool.QueryRow(context.Background(), `SELECT COUNT(*) FROM telemetry WHERE vin=$1`, claimed).Scan(&nClaimed)
+	if nCert != 1 || nClaimed != 0 {
+		t.Fatalf("cert rows = %d, claimed rows = %d; want 1 and 0", nCert, nClaimed)
+	}
+}

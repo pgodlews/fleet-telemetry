@@ -25,6 +25,8 @@ type Producer struct {
 	deliveryChan       chan kafka.Event
 	ackChan            chan (*telemetry.Record)
 	reliableAckTxTypes map[string]interface{}
+	metricsDone        chan struct{}
+	closeOnce          sync.Once
 }
 
 // Metrics stores metrics reported from this package
@@ -65,7 +67,8 @@ func NewProducer(config *kafka.ConfigMap, namespace string, prometheusEnabled bo
 	}
 
 	go producer.handleProducerEvents()
-	go producer.reportProducerMetrics()
+	producer.metricsDone = make(chan struct{})
+	go producer.reportProducerMetrics(producer.metricsDone)
 	producer.logger.ActivityLog("kafka_registered", logrus.LogInfo{"namespace": namespace})
 	return producer, nil
 }
@@ -134,9 +137,31 @@ func (p *Producer) handleProducerEvents() {
 	}
 }
 
-// Close the producer
+// flushTimeout is how long Close waits for messages still in the librdkafka
+// queue to be delivered.
+const flushTimeout = 15 * time.Second
+
+// Close flushes outstanding deliveries, stops the metrics ticker and closes
+// the producer.
+//
+// Close alone did none of that: librdkafka drops whatever is still queued, so
+// records already accepted (and, for reliable-ack tx types, still awaiting
+// their delivery report) were lost on shutdown. The metrics goroutine also
+// ranged over a ticker that was never stopped.
+// Close is safe to call more than once: Flush on an already-closed producer
+// dereferences a freed librdkafka handle and crashes the process.
 func (p *Producer) Close() error {
-	p.kafkaProducer.Close()
+	p.closeOnce.Do(func() {
+		if remaining := p.kafkaProducer.Flush(int(flushTimeout / time.Millisecond)); remaining > 0 {
+			p.logger.ErrorLog("kafka_flush_incomplete", nil,
+				logrus.LogInfo{"unflushed_messages": remaining, "flush_timeout": flushTimeout.String()})
+		}
+		if p.metricsDone != nil {
+			close(p.metricsDone)
+			p.metricsDone = nil
+		}
+		p.kafkaProducer.Close()
+	})
 	return nil
 }
 
@@ -154,15 +179,21 @@ func (p *Producer) logError(err error) {
 	metricsRegistry.errorCount.Inc(map[string]string{})
 }
 
-func (p *Producer) reportProducerMetrics() {
+func (p *Producer) reportProducerMetrics(done <-chan struct{}) {
 	interval := 5 * time.Second
 	t := time.NewTicker(interval)
-	for range t.C {
-		total := p.kafkaProducer.Len()
-		eventsCount := len(p.kafkaProducer.Events())
-		metricsRegistry.producerQueueSize.Set(int64(total), map[string]string{"type": "total"})
-		metricsRegistry.producerQueueSize.Set(int64(eventsCount), map[string]string{"type": "events"})
-		metricsRegistry.producerQueueSize.Set(int64(total-eventsCount), map[string]string{"type": "buffer"})
+	defer t.Stop()
+	for {
+		select {
+		case <-done:
+			return
+		case <-t.C:
+			total := p.kafkaProducer.Len()
+			eventsCount := len(p.kafkaProducer.Events())
+			metricsRegistry.producerQueueSize.Set(int64(total), map[string]string{"type": "total"})
+			metricsRegistry.producerQueueSize.Set(int64(eventsCount), map[string]string{"type": "events"})
+			metricsRegistry.producerQueueSize.Set(int64(total-eventsCount), map[string]string{"type": "buffer"})
+		}
 	}
 }
 

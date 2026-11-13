@@ -368,7 +368,15 @@ func (c *Config) ConfigureProducers(airbrakeHandler *airbrake.Handler, logger *l
 			if dispatchRule == telemetry.Pubsub {
 				pubsubTxTypes = append(pubsubTxTypes, recordName)
 			}
-			dispatchFuncs = append(dispatchFuncs, producers[dispatchRule])
+			// An unrecognised dispatcher name used to append a nil producer:
+			// the slice was non-empty so the length check below passed, and the
+			// failure surfaced as a nil dereference on the first message
+			// instead of at startup.
+			producer, ok := producers[dispatchRule]
+			if !ok {
+				return nil, nil, fmt.Errorf("unknown_dispatch_rule record: %v, dispatchRule: %v", recordName, dispatchRule)
+			}
+			dispatchFuncs = append(dispatchFuncs, producer)
 		}
 		dispatchProducerRules[recordName] = dispatchFuncs
 

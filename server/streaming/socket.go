@@ -31,6 +31,14 @@ const ReadWriteExitDeadline = 50 * time.Millisecond
 // WriteLoopDeadline is the read/write deadline in the main loop
 const WriteLoopDeadline = 10 * time.Second
 
+// ReadLimitBytes bounds the memory a single incoming websocket message may
+// consume. telemetry.NewRecord rejects anything over telemetry.SizeLimit, but
+// only after gorilla has already buffered the whole message, so the transport
+// needs its own ceiling. Kept a little above SizeLimit so records that are
+// merely over the record limit still get the graceful error response instead
+// of a connection reset; anything beyond this is cut off mid-read.
+const ReadLimitBytes = telemetry.SizeLimit + 64*1024
+
 // SocketManager is a struct responsible for managing the socket connection with the clients
 type SocketManager struct {
 	Ws           *websocket.Conn
@@ -183,6 +191,8 @@ func (sm *SocketManager) ProcessTelemetry(serializer *telemetry.BinarySerializer
 	}()
 
 	sm.logger.ActivityLog("socket_connected", sm.requestInfo)
+	// Bound per-message allocation before the first read.
+	sm.Ws.SetReadLimit(ReadLimitBytes)
 	go sm.writer()
 	var rl *rate.RateLimiter
 
@@ -307,7 +317,21 @@ func (sm *SocketManager) respondToVehicle(record *telemetry.Record, err error) {
 	}
 
 	sm.logger.Log(logrus.DEBUG, "message_respond", logInfo)
-	sm.writeChan <- SocketMessage{sm.MsgType, record.Txid, response}
+
+	// Never block indefinitely on the per-socket write queue. handleAcks is a
+	// single global loop: if one socket's queue filled while its writer had
+	// already stopped, that loop blocked here forever and every producer then
+	// blocked on the unbuffered ACK channel — one dead socket stalling
+	// reliable acknowledgement for the whole fleet.
+	select {
+	case sm.writeChan <- SocketMessage{sm.MsgType, record.Txid, response}:
+	case <-sm.stopChan:
+		metricsRegistry.socketErrorCount.Inc(map[string]string{})
+		sm.logger.Log(logrus.DEBUG, "message_respond_dropped_socket_closed", logInfo)
+	case <-time.After(WriteLoopDeadline):
+		metricsRegistry.socketErrorCount.Inc(map[string]string{})
+		sm.logger.ErrorLog("message_respond_timeout", nil, logInfo)
+	}
 }
 
 func (sm *SocketManager) writer() {
