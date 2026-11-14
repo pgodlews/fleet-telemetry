@@ -88,8 +88,10 @@
 > | ![Alerts](docs/screenshots/screenshot-alerts.png) | ![Climate & Comfort](docs/screenshots/screenshot-climate.png) |
 > | **Regen & Brake Health** — Overall NORMAL/WARNING status, brake pad record, regen % trend, peak regen torque curve, brake events per 100 mi | **Safety & Autopilot** — Cruise set vs actual speed, safety feature states (AEB, blind spot, FCW, lane assist), speed limit and emergency braking status |
 > | ![Regen & Brake](docs/screenshots/screenshot-regen-brake.png) | ![Safety & Autopilot](docs/screenshots/screenshot-safety-autopilot.png) |
-> | **Security & Access** — Sentry mode timeline, locked state history, Pin-to-Drive/valet/guest modes, door and window open events over time | _(+ Drivetrain Health, Suspension & Alignment, Predictive Health)_ |
-> | ![Security & Access](docs/screenshots/screenshot-security-access.png) | |
+> | **Security & Access** — Sentry mode timeline, locked state history, Pin-to-Drive/valet/guest modes, door and window open events over time | **Predictive Health** — Subsystem risk scores over time, active alerts, next-service recommendations per subsystem (experimental) |
+> | ![Security & Access](docs/screenshots/screenshot-security-access.png) | ![Predictive Health](docs/screenshots/screenshot-predictive-health.png) |
+> | **Drivetrain Health** — Overall status, inverter and stator temperature trends, peak regen torque, degradation %, per-trip drivetrain stats | _(+ Suspension & Alignment, Service Log)_ |
+> | ![Drivetrain Health](docs/screenshots/screenshot-drivetrain.png) | |
 >
 
 ---
@@ -160,6 +162,10 @@ After each drive the bot sends a photo (route map PNG) with a caption:
 🌤️ 12°C, partly cloudy
 🔌 Now charging · full by ~19:30
 ```
+
+A real trip message, shown in a phone-style mock-up:
+
+<img src="docs/screenshots/screenshot-telegram-trip.png" alt="Trip-complete message with route map" width="320">
 
 ### Bot commands
 
