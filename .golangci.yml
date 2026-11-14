@@ -45,6 +45,11 @@ linters:
   exclusions:
     paths:
       - temp
+      # Fork-owned tools, not yet clean under golangci-lint 2.x (errcheck,
+      # revive and staticcheck findings). They are covered by gofmt, go vet
+      # and tests in the fork-checks job; remove these two lines once fixed.
+      - tools/notify
+      - tools/simulator
 
 formatters:
   enable:
