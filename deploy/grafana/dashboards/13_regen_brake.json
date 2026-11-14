@@ -229,7 +229,19 @@
           "color": {
             "mode": "thresholds"
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "not reported",
+                  "color": "#8e8e8e",
+                  "index": 0
+                }
+              }
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -251,7 +263,8 @@
               }
             ]
           },
-          "unit": ""
+          "unit": "percent",
+          "noValue": "not reported"
         },
         "overrides": []
       },
@@ -366,24 +379,20 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "green",
+                "color": "red",
                 "value": null
               },
               {
                 "color": "yellow",
-                "value": -5
+                "value": -10
               },
               {
-                "color": "red",
-                "value": -10
+                "color": "green",
+                "value": -5
               }
             ]
           },
-          "unit": ""
+          "unit": "percent"
         },
         "overrides": []
       },
@@ -433,7 +442,19 @@
           "color": {
             "mode": "thresholds"
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "not reported",
+                  "color": "#8e8e8e",
+                  "index": 0
+                }
+              }
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -455,7 +476,8 @@
               }
             ]
           },
-          "unit": ""
+          "unit": "percent",
+          "noValue": "not reported"
         },
         "overrides": []
       },
@@ -523,7 +545,39 @@
           },
           "mappings": []
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pads"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 200
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto",
+                  "wrapText": true
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Distance on this set"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "showHeader": true,
@@ -970,7 +1024,24 @@
           },
           "unit": "kwh"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Distance (mi)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthmi"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {

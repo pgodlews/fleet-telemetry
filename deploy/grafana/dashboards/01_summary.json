@@ -37,17 +37,6 @@
         }
       },
       {
-        "name": "distance_unit",
-        "type": "query",
-        "hide": 2,
-        "datasource": {
-          "type": "postgres",
-          "uid": "tesla_timescaledb"
-        },
-        "query": "SELECT COALESCE(distance_unit, 'DistanceUnitKm') FROM vehicle_prefs_pivot WHERE vin = '$vin'",
-        "refresh": 2
-      },
-      {
         "name": "units_effective",
         "type": "query",
         "hide": 2,
@@ -55,8 +44,19 @@
           "type": "postgres",
           "uid": "tesla_timescaledb"
         },
-        "query": "SELECT CASE WHEN '$units_override'='metric' THEN 'metric' WHEN '$units_override'='imperial' THEN 'imperial' WHEN '$distance_unit'='DistanceUnitMiles' THEN 'imperial' ELSE 'metric' END",
+        "query": "SELECT CASE WHEN '$units_override'='metric' THEN 'metric' WHEN '$units_override'='imperial' THEN 'imperial' WHEN (SELECT distance_unit FROM vehicle_prefs_pivot WHERE vin = '$vin')='DistanceUnitMiles' THEN 'imperial' ELSE 'metric' END",
         "refresh": 2
+      },
+      {
+        "name": "temp_effective",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "postgres",
+          "uid": "tesla_timescaledb"
+        },
+        "refresh": 2,
+        "query": "SELECT CASE WHEN '$units_override'='metric' THEN 'metric' WHEN '$units_override'='imperial' THEN 'imperial' WHEN (SELECT temp_unit FROM vehicle_prefs_pivot WHERE vin = '$vin')='TemperatureUnitFahrenheit' THEN 'imperial' ELSE 'metric' END"
       },
       {
         "name": "speed_unit",
@@ -66,7 +66,7 @@
           "type": "postgres",
           "uid": "tesla_timescaledb"
         },
-        "query": "SELECT CASE WHEN '$units_effective'='imperial' THEN 'mph' ELSE 'km/h' END",
+        "query": "SELECT CASE WHEN '$units_override'='imperial' THEN 'mph' WHEN '$units_override'='metric' THEN 'km/h' WHEN (SELECT distance_unit FROM vehicle_prefs_pivot WHERE vin = '$vin')='DistanceUnitMiles' THEN 'mph' ELSE 'km/h' END",
         "refresh": 2,
         "label": "speed unit",
         "options": []
@@ -240,23 +240,79 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "lengthkm",
-          "decimals": 0
-        }
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "not reported",
+                  "color": "#8e8e8e",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
       },
       "options": {
         "graphMode": "area",
         "colorMode": "value",
-        "justifyMode": "center"
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^Range$/",
+          "values": false
+        }
       },
       "targets": [
         {
           "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
           "format": "table",
-          "rawSql": "SELECT CASE WHEN '$units_effective'='imperial' THEN num_value ELSE num_value*1.60934 END AS range FROM telemetry_latest WHERE vin='$vin' AND field='RatedRange'"
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT CASE WHEN '$units_effective'='imperial' THEN num_value ELSE num_value*1.609344 END AS \"Range\" FROM telemetry_latest WHERE vin='$vin' AND field='RatedRange'"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT CASE WHEN '$units_effective'='imperial' THEN 'lengthmi' ELSE 'lengthkm' END AS unit"
         }
       ],
-      "description": "Latest estimated rated range, converted to the effective unit preference."
+      "description": "Latest estimated rated range, converted to the effective unit preference.",
+      "transformations": [
+        {
+          "id": "configFromData",
+          "options": {
+            "configRefId": "B",
+            "mappings": [
+              {
+                "fieldName": "unit",
+                "handlerKey": "unit"
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "id": 3,
@@ -320,11 +376,39 @@
       "targets": [
         {
           "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
           "format": "table",
-          "rawSql": "SELECT str_value AS gear FROM telemetry_latest WHERE vin='$vin' AND field='Gear'"
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT CASE replace(str_value, 'ShiftState', '') WHEN 'P' THEN 'Park' WHEN 'D' THEN 'Drive' WHEN 'R' THEN 'Reverse' WHEN 'N' THEN 'Neutral' ELSE replace(str_value, 'ShiftState', '') END AS gear FROM telemetry WHERE vin='$vin' AND field='Gear' AND str_value LIKE 'ShiftState%' AND ts > now() - interval '400 days' ORDER BY ts DESC LIMIT 1"
         }
       ],
-      "description": "Current transmission gear selector position."
+      "description": "Current transmission gear selector position.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "not reported",
+                  "color": "#8e8e8e",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      }
     },
     {
       "id": 5,
@@ -344,22 +428,55 @@
         "defaults": {
           "unit": "none",
           "decimals": 0,
-          "displayName": "Speed (${speed_unit})"
-        }
+          "displayName": "Speed"
+        },
+        "overrides": []
       },
       "options": {
         "graphMode": "area",
         "colorMode": "value",
-        "justifyMode": "center"
+        "justifyMode": "center",
+        "textMode": "value"
       },
       "targets": [
         {
           "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
           "format": "time_series",
-          "rawSql": "SELECT bucket AS time, CASE WHEN '$units_effective'='imperial' THEN avg_v ELSE avg_v*1.60934 END AS speed FROM telemetry_1m WHERE field='VehicleSpeed' AND vin='$vin' AND $__timeFilter(bucket) ORDER BY 1"
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT bucket AS time, CASE WHEN '$units_effective'='imperial' THEN avg_v ELSE avg_v*1.609344 END AS speed FROM telemetry_1m WHERE field='VehicleSpeed' AND vin='$vin' AND $__timeFilter(bucket) ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT CASE WHEN '$units_effective'='imperial' THEN 'velocitymph' ELSE 'velocitykmh' END AS unit"
         }
       ],
-      "description": "Latest vehicle speed from the 1-minute aggregated telemetry table."
+      "description": "Latest vehicle speed from the 1-minute aggregated telemetry table.",
+      "transformations": [
+        {
+          "id": "configFromData",
+          "options": {
+            "configRefId": "B",
+            "mappings": [
+              {
+                "fieldName": "unit",
+                "handlerKey": "unit"
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "id": 6,
@@ -411,9 +528,10 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "celsius",
+          "unit": "none",
           "decimals": 1
-        }
+        },
+        "overrides": []
       },
       "options": {
         "graphMode": "area",
@@ -423,11 +541,42 @@
       "targets": [
         {
           "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
           "format": "time_series",
-          "rawSql": "SELECT bucket AS time, to_temp(avg_v, '$units_effective') AS temp FROM telemetry_1m WHERE field='OutsideTemp' AND vin='$vin' AND $__timeFilter(bucket) ORDER BY 1"
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT bucket AS time, to_temp(avg_v, '$temp_effective') AS temp FROM telemetry_1m WHERE field='OutsideTemp' AND vin='$vin' AND $__timeFilter(bucket) ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT CASE WHEN '$temp_effective'='imperial' THEN 'fahrenheit' ELSE 'celsius' END AS unit"
         }
       ],
-      "description": "Latest outside temperature, converted to the effective unit preference."
+      "description": "Latest outside temperature, converted to the effective unit preference.",
+      "transformations": [
+        {
+          "id": "configFromData",
+          "options": {
+            "configRefId": "B",
+            "mappings": [
+              {
+                "fieldName": "unit",
+                "handlerKey": "unit"
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "id": 8,
@@ -520,7 +669,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT ts AS time, CASE WHEN '$units_effective'='imperial' THEN num_value ELSE num_value * 1.60934 END AS speed\nFROM telemetry\nWHERE field='VehicleSpeed' AND vin='$vin' AND $__timeFilter(ts)\nORDER BY ts"
+          "rawSql": "SELECT ts AS time, CASE WHEN '$units_effective'='imperial' THEN num_value ELSE num_value * 1.60934 END AS speed\nFROM telemetry\nWHERE field='VehicleSpeed' AND vin='$vin' AND num_value IS NOT NULL AND $__timeFilter(ts)\nORDER BY ts"
         },
         {
           "refId": "B",
@@ -651,17 +800,76 @@
         "y": 32
       },
       "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "none",
-        "textMode": "value_and_name"
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^(Doors|Windows)$/",
+          "values": false
+        }
       },
       "targets": [
         {
           "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
           "format": "table",
-          "rawSql": "SELECT\n  replace(field, 'DoorState_', '') AS door,\n  CASE str_value WHEN 'true' THEN 'Open' ELSE 'Closed' END AS state\nFROM telemetry_latest\nWHERE vin='$vin'\n  AND (field LIKE 'DoorState_%' OR field IN ('FdWindow','FpWindow','RdWindow','RpWindow'))\nORDER BY field"
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT\n  CASE WHEN count(*) FILTER (WHERE field LIKE 'DoorState_%') = 0 THEN NULL\n       WHEN bool_or(field LIKE 'DoorState_%' AND str_value = 'true') THEN 'Open: ' || string_agg(CASE field WHEN 'DoorState_DriverFront' THEN 'driver front' WHEN 'DoorState_PassengerFront' THEN 'passenger front' WHEN 'DoorState_DriverRear' THEN 'driver rear' WHEN 'DoorState_PassengerRear' THEN 'passenger rear' WHEN 'DoorState_TrunkFront' THEN 'frunk' WHEN 'DoorState_TrunkRear' THEN 'boot' ELSE replace(field, 'DoorState_', '') END, ', ') FILTER (WHERE field LIKE 'DoorState_%' AND str_value = 'true')\n       ELSE 'All closed' END AS \"Doors\",\n  CASE WHEN count(*) FILTER (WHERE field LIKE '__Window') = 0 THEN NULL\n       WHEN bool_or(field LIKE '__Window' AND str_value <> 'WindowStateClosed') THEN 'Open: ' || string_agg(CASE field WHEN 'FdWindow' THEN 'driver front' WHEN 'FpWindow' THEN 'passenger front' WHEN 'RdWindow' THEN 'driver rear' WHEN 'RpWindow' THEN 'passenger rear' END || CASE WHEN str_value = 'WindowStatePartiallyOpen' THEN ' (partly)' ELSE '' END, ', ') FILTER (WHERE field LIKE '__Window' AND str_value <> 'WindowStateClosed')\n       ELSE 'All closed' END AS \"Windows\"\nFROM telemetry_latest\nWHERE vin='$vin' AND (field LIKE 'DoorState_%' OR field IN ('FdWindow','FpWindow','RdWindow','RpWindow'))"
         }
-      ]
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "noValue": "not reported",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "All closed": {
+                  "text": "All closed",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": "^Open.*",
+                "result": {
+                  "color": "orange",
+                  "index": 2
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "not reported",
+                  "color": "#8e8e8e",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      }
     },
     {
       "id": 13,
@@ -678,18 +886,72 @@
         "y": 32
       },
       "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "none",
-        "textMode": "value_and_name"
+        "justifyMode": "center",
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        }
       },
       "targets": [
         {
           "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
           "format": "table",
-          "rawSql": "SELECT field, str_value FROM telemetry_latest WHERE vin='$vin' AND field IN ('Locked','SentryMode','ValetModeEnabled','GuestModeEnabled','PinToDriveEnabled','ServiceMode','LightsHazardsActive','BrakePedal','DriverSeatBelt','DriverSeatOccupied')"
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT\n  max(CASE WHEN field='Locked' THEN CASE str_value WHEN 'true' THEN 'Locked' WHEN 'false' THEN 'Unlocked' END END) AS \"Lock\",\n  max(CASE WHEN field='SentryMode' THEN replace(str_value, 'SentryModeState', '') END) AS \"Sentry\",\n  max(CASE WHEN field='PinToDriveEnabled' THEN CASE str_value WHEN 'true' THEN 'On' WHEN 'false' THEN 'Off' END END) AS \"PIN to Drive\",\n  max(CASE WHEN field='ValetModeEnabled' THEN CASE str_value WHEN 'true' THEN 'On' WHEN 'false' THEN 'Off' END END) AS \"Valet\",\n  max(CASE WHEN field='GuestModeEnabled' THEN CASE str_value WHEN 'true' THEN 'On' WHEN 'false' THEN 'Off' END END) AS \"Guest\",\n  max(CASE WHEN field='ServiceMode' THEN CASE str_value WHEN 'true' THEN 'On' WHEN 'false' THEN 'Off' END END) AS \"Service mode\",\n  max(CASE WHEN field='LightsHazardsActive' THEN CASE str_value WHEN 'true' THEN 'On' WHEN 'false' THEN 'Off' END END) AS \"Hazards\"\nFROM telemetry_latest\nWHERE vin='$vin' AND field IN ('Locked','SentryMode','PinToDriveEnabled','ValetModeEnabled','GuestModeEnabled','ServiceMode','LightsHazardsActive')"
         }
       ],
-      "description": "Snapshot of security and occupancy-related boolean fields."
+      "description": "Snapshot of security and occupancy-related boolean fields.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "noValue": "not reported",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "Locked": {
+                  "text": "Locked",
+                  "color": "green",
+                  "index": 1
+                },
+                "Unlocked": {
+                  "text": "Unlocked",
+                  "color": "orange",
+                  "index": 2
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "not reported",
+                  "color": "#8e8e8e",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      }
     },
     {
       "id": 14,
@@ -709,15 +971,54 @@
       "options": {
         "colorMode": "value",
         "graphMode": "none",
-        "textMode": "value_and_name"
+        "justifyMode": "center",
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        }
       },
       "targets": [
         {
           "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "tesla_timescaledb"
+          },
           "format": "table",
-          "rawSql": "SELECT field, value FROM vehicle_prefs WHERE vin='$vin'"
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT replace(distance_unit, 'DistanceUnit', '') AS \"Distance\", replace(temp_unit, 'TemperatureUnit', '') AS \"Temperature\",\n  replace(charge_unit, 'ChargeUnit', '') AS \"Charge display\", replace(tire_unit, 'PressureUnit', '') AS \"Tyre pressure\",\n  CASE time_24h WHEN 'true' THEN '24-hour' WHEN 'false' THEN '12-hour' END AS \"Clock\"\nFROM vehicle_prefs_pivot WHERE vin='$vin'"
         }
-      ]
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "noValue": "not reported",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "not reported",
+                  "color": "#8e8e8e",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      }
     },
     {
       "collapsed": false,
@@ -1018,7 +1319,7 @@
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "",
+          "fields": "/^value$/",
           "values": false
         },
         "text": {},
@@ -1075,7 +1376,8 @@
               }
             ]
           },
-          "unit": "percent"
+          "unit": "percent",
+          "noValue": "no update"
         },
         "overrides": []
       },
@@ -1146,7 +1448,8 @@
               }
             ]
           },
-          "unit": "percent"
+          "unit": "percent",
+          "noValue": "no update"
         },
         "overrides": []
       },
@@ -1208,7 +1511,8 @@
               }
             ]
           },
-          "unit": "dateTimeAsIso"
+          "unit": "dateTimeAsIso",
+          "noValue": "none scheduled"
         },
         "overrides": []
       },
@@ -1244,7 +1548,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 48
+        "y": 53
       },
       "id": 20,
       "title": "🎵 Now Playing",
@@ -1261,7 +1565,18 @@
             "mode": "fixed",
             "fixedColor": "purple"
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "invalid": {
+                  "text": "—",
+                  "color": "text",
+                  "index": 0
+                }
+              }
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1270,7 +1585,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "—"
         },
         "overrides": []
       },
@@ -1278,7 +1594,7 @@
         "h": 3,
         "w": 6,
         "x": 0,
-        "y": 49
+        "y": 54
       },
       "id": 21,
       "type": "stat",
@@ -1291,7 +1607,7 @@
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "/.*/",
+          "fields": "/^value$/",
           "values": false
         }
       },
@@ -1319,7 +1635,18 @@
             "mode": "fixed",
             "fixedColor": "purple"
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "invalid": {
+                  "text": "—",
+                  "color": "text",
+                  "index": 0
+                }
+              }
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1328,7 +1655,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "—"
         },
         "overrides": []
       },
@@ -1336,7 +1664,7 @@
         "h": 3,
         "w": 6,
         "x": 6,
-        "y": 49
+        "y": 54
       },
       "id": 22,
       "type": "stat",
@@ -1349,7 +1677,7 @@
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "/.*/",
+          "fields": "/^value$/",
           "values": false
         }
       },
@@ -1377,7 +1705,18 @@
             "mode": "fixed",
             "fixedColor": "purple"
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "invalid": {
+                  "text": "—",
+                  "color": "text",
+                  "index": 0
+                }
+              }
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1386,7 +1725,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "—"
         },
         "overrides": []
       },
@@ -1394,7 +1734,7 @@
         "h": 3,
         "w": 6,
         "x": 12,
-        "y": 49
+        "y": 54
       },
       "id": 23,
       "type": "stat",
@@ -1407,7 +1747,7 @@
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "/.*/",
+          "fields": "/^value$/",
           "values": false
         }
       },
@@ -1435,7 +1775,18 @@
             "mode": "fixed",
             "fixedColor": "purple"
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "invalid": {
+                  "text": "—",
+                  "color": "text",
+                  "index": 0
+                }
+              }
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1444,7 +1795,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "—"
         },
         "overrides": []
       },
@@ -1452,7 +1804,7 @@
         "h": 3,
         "w": 6,
         "x": 18,
-        "y": 49
+        "y": 54
       },
       "id": 24,
       "type": "stat",
@@ -1465,7 +1817,7 @@
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "/.*/",
+          "fields": "/^value$/",
           "values": false
         }
       },

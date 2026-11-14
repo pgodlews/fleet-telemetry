@@ -711,7 +711,8 @@
               }
             ]
           },
-          "unit": "h"
+          "unit": "h",
+          "noValue": "not charging"
         },
         "overrides": []
       },

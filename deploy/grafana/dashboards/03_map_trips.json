@@ -174,10 +174,9 @@
           "mouseWheelZoom": true
         },
         "basemap": {
-          "type": "carto",
-          "config": {
-            "theme": "dark"
-          }
+          "type": "default",
+          "name": "Basemap",
+          "config": {}
         },
         "layers": [
           {
@@ -616,7 +615,18 @@
             "mode": "fixed",
             "fixedColor": "blue"
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "invalid": {
+                  "text": "no active route",
+                  "color": "text",
+                  "index": 0
+                }
+              }
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -625,7 +635,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "no active route"
         },
         "overrides": []
       },
@@ -685,7 +696,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "—"
         },
         "overrides": []
       },
@@ -746,7 +758,8 @@
               }
             ]
           },
-          "unit": "m"
+          "unit": "m",
+          "noValue": "—"
         },
         "overrides": []
       },
@@ -885,7 +898,8 @@
               }
             ]
           },
-          "unit": "m"
+          "unit": "m",
+          "noValue": "—"
         },
         "overrides": []
       },

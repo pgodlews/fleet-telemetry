@@ -1157,3 +1157,28 @@ cause `query.duplicateRefId` 400 errors on all queries in the panel.
 In Grafana 11 the `/dashboards` route shows **Starred** dashboards (empty by
 default). Use `/dashboards/browse` to see all provisioned dashboards, or
 navigate via the grid icon → Browse in the left sidebar.
+
+## Map tiles for the map panels
+
+Both map panels (Overview and Map & Trips) use Grafana's **default base layer**, so the
+tile source is a server setting, not something stored in the dashboards. Without any
+setting Grafana uses its built-in default. To choose another source, set
+`GF_GEOMAP_DEFAULT_BASELAYER_CONFIG` on the `grafana` service (for example in a
+`docker-compose.override.yml`), then recreate the container:
+
+```yaml
+services:
+  grafana:
+    environment:
+      # OpenStreetMap's public tiles
+      GF_GEOMAP_DEFAULT_BASELAYER_CONFIG: '{"type":"osm-standard","config":{}}'
+      # or any XYZ raster tile server, e.g. one you host yourself
+      # GF_GEOMAP_DEFAULT_BASELAYER_CONFIG: '{"type":"xyz","config":{"url":"/maptiles/styles/dark/256/{z}/{x}/{y}.png","attribution":"© OpenStreetMap contributors"}}'
+```
+
+Tiles are fetched by the **browser**, not by Grafana, so a self-hosted tile server has to
+be reachable from wherever Grafana is opened. Serving it as a path on the same site as
+Grafana (a reverse-proxy location in front of a tile server bound to localhost) keeps it
+behind the same access control and needs no extra hostname or port. The map panel needs
+raster tiles; vector archives (PMTiles, MBTiles) need a renderer such as tileserver-gl
+in front.

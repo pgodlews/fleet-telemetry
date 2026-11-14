@@ -175,10 +175,10 @@
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "/^overall_risk_score$/",
+          "fields": "/^Overall risk$/",
           "values": false
         },
-        "textMode": "value_and_name",
+        "textMode": "value",
         "wideLayout": true
       },
       "targets": [
@@ -241,7 +241,8 @@
             ]
           },
           "unit": "",
-          "noValue": "no data"
+          "noValue": "no data",
+          "displayName": "Risk score"
         },
         "overrides": []
       },
@@ -327,7 +328,8 @@
             ]
           },
           "unit": "",
-          "noValue": "no data"
+          "noValue": "no data",
+          "displayName": "Risk score"
         },
         "overrides": []
       },
@@ -413,7 +415,8 @@
             ]
           },
           "unit": "",
-          "noValue": "no data"
+          "noValue": "no data",
+          "displayName": "Risk score"
         },
         "overrides": []
       },
@@ -493,7 +496,8 @@
             ]
           },
           "unit": "h",
-          "noValue": "no data"
+          "noValue": "no data",
+          "displayName": "Last telemetry"
         },
         "overrides": []
       },
