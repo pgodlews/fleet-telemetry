@@ -13,13 +13,9 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: Set up Go
-      uses: actions/setup-go@v3
+      uses: actions/setup-go@v5
       with:
-        # Must match the `go` directive in go.mod. When it was 1.23 while
-        # go.mod asked for 1.25, CI only worked because the toolchain was
-        # downloaded on demand — so the version actually building was not the
-        # one pinned anywhere.
-        go-version: 1.25.0
+        go-version: 1.27.x
 
     - name: Set up protoc
       run: |
@@ -45,24 +41,15 @@ jobs:
       run: sudo apt update -y && sudo apt upgrade -y && sudo apt install -y libsodium-dev libzmq3-dev
     
     - name: Setup golangci-lint
-      # Not enforced (see below): golangci-lint 1.61 is built with Go 1.23
-      # and refuses this Go 1.25 module, so the step cannot pass until the
-      # linter and .golangci.yml are migrated.
-      continue-on-error: true
-      uses: golangci/golangci-lint-action@v6
+      uses: golangci/golangci-lint-action@v9
       with:
-        # Lint is NOT enforced for this module: golangci-lint 1.61 predates the
-        # Go 1.25 in go.mod, and .golangci.yml is still the v1 schema. Moving
-        # to 2.x needs that file converted (version key, linters.settings,
-        # gosimple folded into staticcheck, issues.exclude-dirs ->
-        # linters.exclusions.paths) and the Makefile's v1-only
-        # --exclude-use-default flag dropped. Until then treat a red or green
-        # lint step here as meaningless; the fork-checks job below is the
-        # gate for fork-owned code.
-        version: v1.61.0
+        version: v2.14.0
 
     - name: Linter passes
-      continue-on-error: true   # not enforced, same reason as above
+      # Not enforced yet: the fork-owned packages (datastore/postgres, tools)
+      # have not been made clean under golangci-lint 2.x. The fork-checks job
+      # below is the gate for that code.
+      continue-on-error: true
       run: make linters
 
     - name: Test
@@ -113,7 +100,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: 1.25.0
+        go-version: 1.27.x
 
     - name: gofmt
       run: |

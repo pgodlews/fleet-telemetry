@@ -1,6 +1,6 @@
 # Faster build for production deploy — installs ZMQ/sodium from apt
 # instead of compiling from source like the upstream Dockerfile does.
-FROM golang:1.25-bookworm AS build
+FROM golang:1.27-bookworm AS build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libzmq3-dev libsodium-dev pkg-config \

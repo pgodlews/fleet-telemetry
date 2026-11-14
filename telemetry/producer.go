@@ -24,6 +24,8 @@ const (
 	MQTT Dispatcher = "mqtt"
 	// Postgres registers a PostgreSQL/TimescaleDB dispatcher
 	Postgres Dispatcher = "postgres"
+	// Redis registers a Redis pub/sub dispatcher
+	Redis Dispatcher = "redis"
 )
 
 // BuildTopicName creates a topic from a namespace and a recordName

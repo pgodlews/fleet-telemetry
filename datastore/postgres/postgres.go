@@ -503,6 +503,12 @@ func stringerEnum(v interface{}) (string, bool) {
 		return x.MediaStatusValue.String(), true
 	case *protos.Value_SunroofInstalledStateValue:
 		return x.SunroofInstalledStateValue.String(), true
+	case *protos.Value_CabinPortKeepOnValue:
+		return x.CabinPortKeepOnValue.String(), true
+	case *protos.Value_PowerTransferStatusValue:
+		return x.PowerTransferStatusValue.String(), true
+	case *protos.Value_AutomaticEmergencyBrakingStateValue:
+		return x.AutomaticEmergencyBrakingStateValue.String(), true
 	}
 	return "", false
 }
